@@ -1,0 +1,21 @@
+# Node modules
+node_modules/
+
+# 환경 변수
+.env
+
+# 로그 파일
+*.log
+
+# OS별 자동 생성 파일
+.DS_Store
+Thumbs.db
+
+# npm debug
+npm-debug.log*
+
+# 테스트 커버리지
+coverage/
+
+# 빌드 아웃풋 (만약 존재할 경우)
+dist/
