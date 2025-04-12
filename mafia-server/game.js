@@ -84,7 +84,6 @@ class MafiaGame {
         maxVotes = count;
         targetToKill = target;
       }
-      ;
     }
 
     if (targetToKill && targetToKill === doctorTarget) {
