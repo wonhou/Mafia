@@ -9,10 +9,7 @@ public class Login : MonoBehaviour
 
     public static string nickname = "";
 
-    string[] rand_nick = {"ShadowFox", "SilentWolf", "CrimsonCrow", "NightThorn", "GhostTrigger", "LunaVibe", "EchoFang", "MaskedIris", "AshReaper", "VelvetTrap","BloodWraith", "DarkWhisper", "GraveSilence",
-    "HollowEyes"," CursedFang", "PhantomEcho", "RavenHex", "CrimsonShade", "SinisterBloom", "BlackMorrow", "Deadveil", "AshenSoul", "NocturneGrin", "RottenGaze", "BleedingMoon", "Hauntveil", "TwistedLullaby",
-    "FrostbiteKiss", "BuriedSmile", "GloomCaller", "WhisperingHollow", "EbonClaw", "ScreamingDust", "GrimPulse", "MournShroud", "ChillStalker", "Duskwither", "HexedGrin", "ShiverLoom", "NightBleeder"};
-
+   
     public TMP_InputField InputField;
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
@@ -35,11 +32,5 @@ public class Login : MonoBehaviour
     {
         nickname = InputField.text;
         Debug.Log(InputField.text);
-    }
-
-    public void Random_Button_Click()
-    {
-        nickname = rand_nick[Random.Range(0, rand_nick.Length)];
-        InputField.text = nickname;
     }
 }

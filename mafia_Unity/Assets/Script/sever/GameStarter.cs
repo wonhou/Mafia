@@ -11,32 +11,36 @@ public class ServerMessage
     public string sender;
     public string message;
     public string role;
+    public string roomId;
+    public string roomName;
 }
 
 public class GameStarter : MonoBehaviour
 {
     private WebSocket websocket;
-
     public TMP_Text chatDisplay;           // 채팅 로그 출력용 UI 텍스트
     public TMP_InputField chatInput;       // 채팅 입력창
     public Button startGameButton;         // Start Game 버튼 (옵션)
-
+    public TMP_InputField roomNameInput;
     async void Start()
     {
         websocket = new WebSocket("ws://localhost:3000");
 
         websocket.OnOpen += () =>
         {
-            Debug.Log("✅ 서버 연결됨");
-            string nickname = Login.nickname;
-            string registerMsg = $"{{\"type\":\"register\", \"playerId\":\"{nickname}\"}}";
-            websocket.SendText(registerMsg);
+            var registerMsg = new
+            {
+                type = "register",
+                playerId = Login.nickname
+            };
+            string json = JsonUtility.ToJson(registerMsg);
+            websocket.SendText(json);
         };
 
         websocket.OnMessage += (bytes) =>
         {
             string message = Encoding.UTF8.GetString(bytes);
-            Debug.Log("📨 받은 메시지: " + message);
+            Debug.Log("받은 메시지: " + message);
 
             ServerMessage msg = JsonUtility.FromJson<ServerMessage>(message);
 
@@ -52,6 +56,11 @@ public class GameStarter : MonoBehaviour
             else if (msg.type == "game_over")
             {
                 chatDisplay.text += $"게임 종료! 승자: {msg.message}\n";
+            }
+            else if (msg.type == "room_created")
+            {
+                Debug.Log($"✅ 방 생성 완료! ID: {msg.roomId}, 이름: {msg.roomName}");
+                // SceneManager.LoadScene("RoomScene");
             }
         };
 
@@ -85,7 +94,7 @@ public class GameStarter : MonoBehaviour
         if (websocket != null && websocket.State == WebSocketState.Open)
         {
             websocket.SendText("{\"type\":\"start_game\"}");
-            Debug.Log("📤 게임 시작 메시지 전송됨!");
+            Debug.Log("게임 시작 메시지 전송됨!");
         }
     }
 
@@ -107,4 +116,29 @@ public class GameStarter : MonoBehaviour
         websocket.SendText(json);
         chatInput.text = "";
     }
+
+    public void OnClickCreateRoom()
+    {
+        string roomName = roomNameInput.text;
+
+        var message = new
+        {
+            type = "create_room",
+            playerId = Login.nickname,
+            roomName = roomName
+        };
+
+        string json = JsonUtility.ToJson(message);
+        websocket.SendText(json);
+        Debug.Log("방 생성 요청 보냄: " + roomName);
+    }
 }
+
+
+// Unity 에디터에서 연결해야 할 것
+/* 
+Create Room 버튼 → OnClickCreateRoom()
+Send Chat 버튼 → OnSendChat()
+Start Game 버튼 → OnClickStartGame()
+*/
+
