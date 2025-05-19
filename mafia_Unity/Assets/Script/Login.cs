@@ -9,8 +9,8 @@ public class Login : MonoBehaviour
 
     public static string nickname = "";
 
-   
     public TMP_InputField InputField;
+
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {

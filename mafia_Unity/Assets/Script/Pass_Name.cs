@@ -3,7 +3,7 @@ using UnityEngine;
 
 public class Pass_Name : MonoBehaviour
 {
-    public TMP_InputField Room_name;
+    public TMP_InputField field;
 
     public static string room_name = "";
 
@@ -21,7 +21,7 @@ public class Pass_Name : MonoBehaviour
 
     public void pass_name()
     {
-        room_name = Room_name.text;
-        Debug.Log(Room_name.text);
+        room_name = field.text;
+        Debug.Log(field.text);
     }
 }
