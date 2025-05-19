@@ -1,20 +1,15 @@
-using Unity.VisualScripting;
+using TMPro;
 using UnityEngine;
 
-public class Making_Room : MonoBehaviour
+public class RoomMaking : MonoBehaviour
 {
-
-    public GameObject obj;
+    public TextMeshProUGUI title;
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
-        setActive(false);
+        title.text = Pass_Name.room_name;
     }
 
-    public void setActive(bool active)
-    {
-        obj.gameObject.SetActive(active);
-    }
     // Update is called once per frame
     void Update()
     {
