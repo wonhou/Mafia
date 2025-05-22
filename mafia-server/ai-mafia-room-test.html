@@ -1,0 +1,71 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>방 테스트</title>
+</head>
+<body>
+  <h2> 방 테스트</h2>
+  <label>Player ID: <input type="text" id="playerId" value="user1"></label><br>
+  <label>Room ID: <input type="text" id="roomId" value=""></label><br>
+  <label>Room Name: <input type="text" id="roomName" value="테스트방"></label><br>
+  <button onclick="connect()">1️⃣ Connect</button>
+  <button onclick="createRoom()">2️⃣ Create Room</button>
+  <button onclick="joinRoom()">3️⃣ Join Room</button>
+  <button onclick="startGame()">4️⃣ Start Game</button>
+  <br><br>
+  <input type="text" id="msg" placeholder="Message">
+  <button onclick="send()">📤 Send</button>
+  <ul id="log"></ul>
+
+  <script>
+    let socket;
+
+    function log(msg) {
+      const ul = document.getElementById("log");
+      const li = document.createElement("li");
+      li.textContent = msg;
+      ul.appendChild(li);
+    }
+
+    function connect() {
+      socket = new WebSocket("ws://localhost:3000");
+      socket.onopen = () => {
+        const pid = document.getElementById("playerId").value;
+        socket.send(JSON.stringify({ type: "register", playerId: pid }));
+        log("✅ Connected and registered: " + pid);
+      };
+      socket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        log("📨 " + JSON.stringify(data));
+        if (data.type === "room_created") {
+          document.getElementById("roomId").value = data.roomId;
+        }
+      };
+    }
+
+    function createRoom() {
+      const pid = document.getElementById("playerId").value;
+      const roomName = document.getElementById("roomName").value;
+      socket.send(JSON.stringify({ type: "create_room", playerId: pid, roomName }));
+    }
+
+    function joinRoom() {
+      const pid = document.getElementById("playerId").value;
+      const roomId = document.getElementById("roomId").value;
+      socket.send(JSON.stringify({ type: "join_room", playerId: pid, roomId }));
+    }
+
+    function startGame() {
+      const roomId = document.getElementById("roomId").value;
+      socket.send(JSON.stringify({ type: "start_game", roomId }));
+    }
+
+    function send() {
+      const msg = document.getElementById("msg").value;
+      socket.send(JSON.stringify({ type: "chat", text: msg }));
+    }
+  </script>
+</body>
+</html>
