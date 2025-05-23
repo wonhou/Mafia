@@ -4,7 +4,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 
 
-public class Button : MonoBehaviour
+public class SceneChange : MonoBehaviour
 {
     public string scene_name = "";
 
@@ -20,7 +20,7 @@ public class Button : MonoBehaviour
         
     }
 
-    public void SceneChange()
+    public void Scene_Change()
     {
         SceneManager.LoadScene(scene_name);
     }
