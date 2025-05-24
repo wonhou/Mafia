@@ -6,6 +6,7 @@ using System.Collections;
 
 public class ChatManager : MonoBehaviour
 {
+    public WebSocketClient webSocketClient;
     public TMP_InputField InputField;
     public Button ok;
     public Transform chatContent;
@@ -21,7 +22,7 @@ public class ChatManager : MonoBehaviour
 
     void HandleEndEdit(string value)
     {
-        // Shift+Enter ÁÙ¹Ù²ÞÀº ¹«½ÃÇÏ°í, Enter¸¸ Ã³¸®
+        // Shift+Enter ï¿½Ù¹Ù²ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ï°ï¿½, Enterï¿½ï¿½ Ã³ï¿½ï¿½
         if (!Input.GetKey(KeyCode.LeftShift) && !Input.GetKey(KeyCode.RightShift))
         {
             SendChat();
@@ -36,8 +37,13 @@ public class ChatManager : MonoBehaviour
 
         GameObject chatItem = Instantiate(chatTextPrefab, chatContent);
         chatItem.GetComponent<TextMeshProUGUI>().text = nickname + ": " + message;
+        webSocketClient.SendChat(message);
 
         InputField.text = "";
+        if (gameObject.activeInHierarchy)
+        {
+        StartCoroutine(RefocusInputField());
+        }
 
         // Scroll to bottom
         Canvas.ForceUpdateCanvases();
@@ -46,7 +52,9 @@ public class ChatManager : MonoBehaviour
 
     IEnumerator RefocusInputField()
     {
-        yield return null; // ÇÑ ÇÁ·¹ÀÓ ´ë±â
-        InputField.ActivateInputField(); // Ä¿¼­ º¹¿ø
+        yield return null; // ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½
+        InputField.ActivateInputField(); // Ä¿ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
     }
+
+    
 }

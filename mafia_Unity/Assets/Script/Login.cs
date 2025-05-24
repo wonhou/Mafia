@@ -1,7 +1,6 @@
 using TMPro;
-using Unity.VisualScripting;
 using UnityEngine;
-using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 
 public class Login : MonoBehaviour
 {
@@ -9,19 +8,8 @@ public class Login : MonoBehaviour
 
     public static string nickname = "";
 
-    public TMP_InputField InputField;
-
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
-    void Start()
-    {
-
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-
-    }
+    public TMP_InputField InputField;          
+    public WebSocketClient wsClient;            
 
     private void Awake()
     {
@@ -30,7 +18,21 @@ public class Login : MonoBehaviour
 
     public void ButtonClick()
     {
+        if (InputField == null)
+        {
+            Debug.LogError("❌ InputField가 Inspector에서 연결되지 않았습니다!");
+            return;
+        }
+
+        if (wsClient == null)
+        {
+            Debug.LogError("❌ wsClient가 Inspector에서 연결되지 않았습니다!");
+            return;
+        }
+
         nickname = InputField.text;
-        Debug.Log(InputField.text);
+        Debug.Log("✅ 닉네임: " + nickname);
+
+        wsClient.Init();  // WebSocket 등록 요청
     }
 }

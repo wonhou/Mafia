@@ -22,6 +22,7 @@ public class GameStarter : MonoBehaviour
     public TMP_InputField chatInput;       // 채팅 입력창
     public Button startGameButton;         // Start Game 버튼 (옵션)
     public TMP_InputField roomNameInput;
+    public WebSocketClient wsClient;
     async void Start()
     {
         websocket = new WebSocket("ws://localhost:3000");
@@ -119,6 +120,7 @@ public class GameStarter : MonoBehaviour
 
     public void OnClickCreateRoom()
     {
+        wsClient.CreateRoom();
         string roomName = roomNameInput.text;
 
         var message = new
