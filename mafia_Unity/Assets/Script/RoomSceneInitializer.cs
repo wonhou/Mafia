@@ -1,14 +1,11 @@
 using UnityEngine;
-using TMPro;
 
 public class RoomSceneInitializer : MonoBehaviour
-{
-    public TextMeshProUGUI title;       
+{   
 
     void Start()
     {
         Debug.Log("🏁 Room 씬 진입 - Start() 호출됨");
-        title.text = Pass_Name.room_name;
 
         if (MafiaClientUnified.Instance == null)
         {

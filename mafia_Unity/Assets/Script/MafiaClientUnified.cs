@@ -184,7 +184,7 @@ public class MafiaClientUnified : MonoBehaviour
                             Debug.Log($"🔹 슬롯 {p.slot} | 닉네임: {p.name} | ID: {p.id} | {(p.isOwner ? "👑 방장" : "유저")}");
                         }
                         break;
-                        
+
                     case "left_room":
                         Debug.Log($"🚪 방 나가기 완료! roomId: {root.roomId}");
                         break;
@@ -238,12 +238,10 @@ public class MafiaClientUnified : MonoBehaviour
                 Debug.Log($"✅ 방 생성 완료! ID: {msg.roomId}, 이름: {msg.roomName}");
 
                 // 여기서 직접 방 ID 텍스트 업데이트
-                var roomCodeObj = GameObject.Find("RoomCodeText");
-                if (roomCodeObj != null)
+
+                if (RoomCodeInit.Instance != null)
                 {
-                    var tmp = roomCodeObj.GetComponent<TextMeshProUGUI>();
-                    if (tmp != null)
-                        tmp.text = roomId;
+                    RoomCodeInit.Instance.UpdateRoomUI(roomId, Pass_Name.room_name);
                 }
 
                 TryJoinRoom();

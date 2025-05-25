@@ -3,17 +3,22 @@ using UnityEngine;
 
 public class RoomCodeInit : MonoBehaviour
 {
+    public TextMeshProUGUI roomIdText;
+    public TextMeshProUGUI roomNameText;
 
-    public TextMeshProUGUI title;
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
-    void Start()
+    public static RoomCodeInit Instance;
+
+    private void Awake()
     {
-        title.text = MafiaClientUnified.Instance.roomId;
+        Instance = this;
     }
 
-    // Update is called once per frame
-    void Update()
+    public void UpdateRoomUI(string id, string name)
     {
-        
+        if (roomIdText != null)
+            roomIdText.text = id;
+
+        if (roomNameText != null)
+            roomNameText.text = name;
     }
 }
