@@ -20,7 +20,6 @@ public class RoomSceneInitializer : MonoBehaviour
         MafiaClientUnified.Instance.OnConnected = () =>
         {
             Debug.Log("📡 WebSocket 연결 완료 후 CreateRoom 호출");
-            MafiaClientUnified.Instance.CreateRoom();
         };
 
         MafiaClientUnified.Instance.ConnectToServer();

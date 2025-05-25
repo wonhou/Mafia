@@ -36,6 +36,55 @@ public class CreateRoomMessage
     public string roomName;
 }
 
+[System.Serializable]
+public class RoomPlayer
+{
+    public string id;
+    public string name;
+    public int slot;
+    public bool isOwner;
+}
+
+[System.Serializable]
+public class RoomInfoMessage
+{
+    public string type;
+    public string roomId;
+    public string roomName;
+    public RoomPlayer[] players;
+    public bool isOwner;
+}
+
+[System.Serializable]
+public class JoinRoomMessage
+{
+    public string type = "join_room";
+    public string roomId;
+    public string playerId;
+
+    public JoinRoomMessage(string roomId, string playerId)
+    {
+        this.roomId = roomId;
+        this.playerId = playerId;
+    }
+}
+
+[System.Serializable]
+public class LeaveRoomMessage
+{
+    public string type = "leave_room";
+    public string roomId;
+    public string playerId;
+
+    public LeaveRoomMessage(string roomId, string playerId)
+    {
+        this.roomId = roomId;
+        this.playerId = playerId;
+    }
+}
+
+
+
 public class MafiaClientUnified : MonoBehaviour
 {
     public static MafiaClientUnified Instance { get; private set; }
@@ -47,10 +96,12 @@ public class MafiaClientUnified : MonoBehaviour
 
     public string playerId;
     public string playerName;
-     public string roomId;
+    public string roomId;
 
     private WebSocket websocket;
     private WebSocketState lastState = WebSocketState.Closed;
+    private bool isRegistered = false;
+    private bool roomCreated = false;
 
     void Awake()
     {
@@ -124,6 +175,20 @@ public class MafiaClientUnified : MonoBehaviour
                         Debug.Log("🧑‍🤝‍🧑 플레이어 목록 갱신 메시지 수신 (현재 무시 중)");
                         break;
 
+                    case "room_info":
+                        RoomInfoMessage roomInfo = JsonUtility.FromJson<RoomInfoMessage>(message);
+                        Debug.Log($"🏠 방 정보 수신됨 - RoomID: {roomInfo.roomId}, RoomName: {roomInfo.roomName}, 방장 여부: {roomInfo.isOwner}");
+
+                        foreach (RoomPlayer p in roomInfo.players)
+                        {
+                            Debug.Log($"🔹 슬롯 {p.slot} | 닉네임: {p.name} | ID: {p.id} | {(p.isOwner ? "👑 방장" : "유저")}");
+                        }
+                        break;
+                        
+                    case "left_room":
+                        Debug.Log($"🚪 방 나가기 완료! roomId: {root.roomId}");
+                        break;
+
                     default:
                         Debug.Log("📦 처리되지 않은 메시지: " + message);
                         break;
@@ -162,12 +227,26 @@ public class MafiaClientUnified : MonoBehaviour
             case "register_success":
                 playerId = msg.playerId;
                 playerName = msg.playerName;
+                isRegistered = true;
                 Debug.Log($"🟢 등록 성공! ID: {playerId}, 이름: {playerName}");
+                TryJoinRoom();
                 break;
 
             case "room_created":
                 roomId = msg.roomId;
+                roomCreated = true;
                 Debug.Log($"✅ 방 생성 완료! ID: {msg.roomId}, 이름: {msg.roomName}");
+
+                // 여기서 직접 방 ID 텍스트 업데이트
+                var roomCodeObj = GameObject.Find("RoomCodeText");
+                if (roomCodeObj != null)
+                {
+                    var tmp = roomCodeObj.GetComponent<TextMeshProUGUI>();
+                    if (tmp != null)
+                        tmp.text = roomId;
+                }
+
+                TryJoinRoom();
                 break;
 
             case "chat":
@@ -229,32 +308,36 @@ public class MafiaClientUnified : MonoBehaviour
             return;
         }
 
-        var joinRoomMsg = new
-        {
-            type = "join_room",
-            roomId = roomId,
-            playerId = playerId
-        };
-
+        JoinRoomMessage joinRoomMsg = new JoinRoomMessage(roomId, playerId);
         string json = JsonUtility.ToJson(joinRoomMsg);
-        websocket.SendText(json);
         Debug.Log("📌 JoinRoom 메시지 전송됨: " + json);
+        websocket.SendText(json);
+    }
+
+
+    private void TryJoinRoom()
+    {
+        if (isRegistered && roomCreated)
+        {
+            Debug.Log("🚪 조건 충족 → JoinRoom 호출");
+            JoinRoom();
+        }
+        else
+        {
+            Debug.Log($"⏳ 아직 대기 중 - isRegistered: {isRegistered}, roomCreated: {roomCreated}");
+        }
     }
 
     public void LeaveRoom()
     {
+         Debug.Log("📣 LeaveRoom() 호출됨");
         if (string.IsNullOrEmpty(playerId) || string.IsNullOrEmpty(roomId))
         {
             Debug.LogError("❌ LeaveRoom 실패 - playerId 또는 roomId 없음");
             return;
         }
 
-        var leaveMsg = new
-        {
-            type = "leave_room",
-            roomId = roomId,
-            playerId = playerId
-        };
+        var leaveMsg = new LeaveRoomMessage(roomId, playerId);
 
         string json = JsonUtility.ToJson(leaveMsg);
         websocket.SendText(json);

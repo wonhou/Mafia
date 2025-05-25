@@ -7,7 +7,6 @@ using System.Collections;
 public class ChatManager : MonoBehaviour
 {
     // public WebSocketClient webSocketClient;
-    public MafiaClientUnified mafiaClientUnified;
     public TMP_InputField InputField;
     public Button ok;
     public Transform chatContent;
@@ -23,7 +22,7 @@ public class ChatManager : MonoBehaviour
 
     void HandleEndEdit(string value)
     {
-        // Shift+Enter �ٹٲ��� �����ϰ�, Enter�� ó��
+        // Shift+Enter
         if (!Input.GetKey(KeyCode.LeftShift) && !Input.GetKey(KeyCode.RightShift))
         {
             SendChat();
@@ -38,7 +37,15 @@ public class ChatManager : MonoBehaviour
 
         GameObject chatItem = Instantiate(chatTextPrefab, chatContent);
         chatItem.GetComponent<TextMeshProUGUI>().text = nickname + ": " + message;
-        mafiaClientUnified.SendChat(message);
+        
+        if (MafiaClientUnified.Instance != null)
+        {
+            MafiaClientUnified.Instance.SendChat(message); // 🔄 변경됨
+        }
+        else
+        {
+            Debug.LogWarning("⚠️ MafiaClientUnified.Instance가 null입니다! 채팅 전송 실패"); // 🔄 추가
+        }
 
         InputField.text = "";
         if (gameObject.activeInHierarchy)
@@ -53,8 +60,8 @@ public class ChatManager : MonoBehaviour
 
     IEnumerator RefocusInputField()
     {
-        yield return null; // �� ������ ���
-        InputField.ActivateInputField(); // Ŀ�� ����
+        yield return null; 
+        InputField.ActivateInputField(); 
     }
 
     
