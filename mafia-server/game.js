@@ -7,7 +7,9 @@ class MafiaGame {
     this.state = 'waiting';
     this.day = 0;
     this.votes = {};
-    this.chatHistory = []; // 전체 누적 대화 기록
+    this.chatHistory = [];
+    this.lastInvestigation = null;
+    this.lastSaved = null;
   }
 
   startGame() {
@@ -23,7 +25,6 @@ class MafiaGame {
       'doctor',
       'citizen', 'citizen', 'citizen', 'citizen'
     ];
-
     const shuffled = roles.sort(() => Math.random() - 0.5);
 
     this.players.forEach((player, index) => {
@@ -56,17 +57,17 @@ class MafiaGame {
       }
     }
 
-    this.handleNightActions(nightActions);
+    await this.handleNightActions(nightActions);
   }
 
-  handleNightActions(nightActions) {
-    console.log(`🩸 밤 ${this.day} 행동 처리 중...`);
+  async handleNightActions(nightActions) {
+    console.log(`🩸 밤 ${this.day} 행동 처리 중.`);
 
     let mafiaTargets = [];
     let doctorTarget = null;
     let policeTarget = null;
 
-    nightActions.forEach(({ playerId, action }) => {
+    nightActions.forEach(({ action }) => {
       if (action.action === 'kill') mafiaTargets.push(action.target);
       else if (action.action === 'save') doctorTarget = action.target;
       else if (action.action === 'investigate') policeTarget = action.target;
@@ -101,9 +102,25 @@ class MafiaGame {
       console.log('🌙 이번 밤에는 아무도 죽지 않았습니다');
     }
 
-    if (policeTarget) {
+    const police = this.players.find(p => p.role === 'police' && p.alive);
+    const doctor = this.players.find(p => p.role === 'doctor' && p.alive);
+
+    if (police && policeTarget) {
       const investigated = this.players.find(p => p.id === policeTarget);
-      console.log(`🔎 경찰이 조사한 대상: ${policeTarget} (${investigated?.role})`);
+      if (investigated) {
+        this.lastInvestigation = {
+          policeId: police.id,
+          target: investigated.id,
+          isMafia: investigated.role === 'mafia'
+        };
+      }
+    }
+
+    if (doctor && doctorTarget) {
+      this.lastSaved = {
+        doctorId: doctor.id,
+        saved: doctorTarget
+      };
     }
 
     this.broadcast({
@@ -120,7 +137,6 @@ class MafiaGame {
   async startDay() {
     this.state = 'day';
     console.log(`🌞 낮 ${this.day} 시작`);
-
     this.votes = {};
 
     this.broadcast({
@@ -128,7 +144,7 @@ class MafiaGame {
       message: `낮 ${this.day}이 시작되었습니다. 투표를 준비하세요.`
     });
 
-    await this.sendChatRequests(); // AI에게 채팅 요청
+    await this.sendChatRequests();
 
     this.broadcast({
       type: 'start_vote',
@@ -136,40 +152,65 @@ class MafiaGame {
     });
 
     const aliveAIs = this.players.filter(p => p.isAI && p.alive);
-    aliveAIs.forEach(ai => {
-      const targets = this.players.filter(p => p.alive && p.id !== ai.id);
-      const randomTarget = targets[Math.floor(Math.random() * targets.length)];
-      if (randomTarget) {
-        this.receiveVote(ai.id, randomTarget.id);
+    for (const ai of aliveAIs) {
+      try {
+        const res = await axios.post(`http://localhost:4000/vote-suggestion`, {
+          playerId: ai.id,
+          history: this.chatHistory,
+          alivePlayers: this.players.filter(p => p.alive).map(p => p.id)
+        });
+        const target = res.data.target;
+        this.receiveVote(ai.id, target);
+      } catch (err) {
+        console.error(`❌ 투표 추천 실패 (${ai.id}):`, err.message);
       }
-    });
+    }
   }
 
   async sendChatRequests() {
     const aliveAIs = this.players.filter(p => p.isAI && p.alive);
 
     for (const ai of aliveAIs) {
+      const isPolice = ai.role === 'police';
+      const isDoctor = ai.role === 'doctor';
+
+      const investigation = (isPolice && this.lastInvestigation && this.lastInvestigation.policeId === ai.id)
+        ? { target: this.lastInvestigation.target, isMafia: this.lastInvestigation.isMafia }
+        : null;
+
+      const savedInfo = (isDoctor && this.lastSaved && this.lastSaved.doctorId === ai.id)
+        ? { saved: this.lastSaved.saved }
+        : null;
+
       try {
         const res = await axios.post(`http://localhost:4000/chat-request`, {
           playerId: ai.id,
           history: this.chatHistory,
-          day: this.day
+          day: this.day,
+          investigation,
+          savedInfo
         });
 
         const message = res.data.message;
-        this.chatHistory.push({ sender: ai.id, message });
 
-        this.broadcast({
-          type: "chat",
-          sender: ai.id,
-          message
-        });
-
-        console.log(`💬 ${ai.id}: ${message}`);
+        if (message && message !== "...") {
+          this.chatHistory.push({ sender: ai.id, message });
+          this.broadcast({
+            type: "chat",
+            sender: ai.id,
+            message
+          });
+          console.log(`💬 ${ai.id}: ${message}`);
+        } else {
+          console.log(`🤐 ${ai.id}는 이번 턴에 말하지 않았습니다.`);
+        }
       } catch (err) {
         console.error(`❌ ${ai.id} 채팅 실패:`, err.message);
       }
     }
+
+    this.lastInvestigation = null;
+    this.lastSaved = null;
   }
 
   receiveVote(from, target) {
