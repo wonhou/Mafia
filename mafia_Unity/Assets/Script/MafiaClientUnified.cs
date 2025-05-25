@@ -223,7 +223,42 @@ public class MafiaClientUnified : MonoBehaviour
 
     public void JoinRoom()
     {
+        if (string.IsNullOrEmpty(roomId) || string.IsNullOrEmpty(playerId))
+        {
+            Debug.LogError("❌ JoinRoom 실패 - roomId 또는 playerId 없음");
+            return;
+        }
 
+        var joinRoomMsg = new
+        {
+            type = "join_room",
+            roomId = roomId,
+            playerId = playerId
+        };
+
+        string json = JsonUtility.ToJson(joinRoomMsg);
+        websocket.SendText(json);
+        Debug.Log("📌 JoinRoom 메시지 전송됨: " + json);
+    }
+
+    public void LeaveRoom()
+    {
+        if (string.IsNullOrEmpty(playerId) || string.IsNullOrEmpty(roomId))
+        {
+            Debug.LogError("❌ LeaveRoom 실패 - playerId 또는 roomId 없음");
+            return;
+        }
+
+        var leaveMsg = new
+        {
+            type = "leave_room",
+            roomId = roomId,
+            playerId = playerId
+        };
+
+        string json = JsonUtility.ToJson(leaveMsg);
+        websocket.SendText(json);
+        Debug.Log("📤 LeaveRoom 메시지 전송됨: " + json);
     }
 
     public void SendChat(string msg)
