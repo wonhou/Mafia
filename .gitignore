@@ -1,0 +1,10 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# AWS private keys (보안상 절대 올리지 마세요)
+*.pem
+*.ppk
+
+# 기타 민감 정보
+*.txt
