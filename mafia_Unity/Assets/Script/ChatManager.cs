@@ -6,7 +6,8 @@ using System.Collections;
 
 public class ChatManager : MonoBehaviour
 {
-    public WebSocketClient webSocketClient;
+    // public WebSocketClient webSocketClient;
+    public MafiaClientUnified mafiaClientUnified;
     public TMP_InputField InputField;
     public Button ok;
     public Transform chatContent;
@@ -37,7 +38,7 @@ public class ChatManager : MonoBehaviour
 
         GameObject chatItem = Instantiate(chatTextPrefab, chatContent);
         chatItem.GetComponent<TextMeshProUGUI>().text = nickname + ": " + message;
-        webSocketClient.SendChat(message);
+        mafiaClientUnified.SendChat(message);
 
         InputField.text = "";
         if (gameObject.activeInHierarchy)

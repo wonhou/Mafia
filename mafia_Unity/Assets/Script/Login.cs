@@ -1,38 +1,38 @@
-using TMPro;
 using UnityEngine;
-using UnityEngine.SceneManagement;
+using TMPro;
 
 public class Login : MonoBehaviour
 {
-    public static Login Instance;
+    public static string nickname; // 🔹 전역 저장용
 
-    public static string nickname = "";
-
-    public TMP_InputField InputField;          
-    public WebSocketClient wsClient;            
-
-    private void Awake()
-    {
-        Instance = this;
-    }
+    public TMP_InputField inputField;
+    public MafiaClientUnified mafiaClientUnified;
+    public SceneChange sceneChanger;
 
     public void ButtonClick()
     {
-        if (InputField == null)
+        Debug.Log("🟡 로그인 시작");
+
+        if (inputField == null || string.IsNullOrEmpty(inputField.text))
         {
-            Debug.LogError("❌ InputField가 Inspector에서 연결되지 않았습니다!");
+            Debug.LogError("❌ inputField가 null이거나 비어있음");
             return;
         }
 
-        if (wsClient == null)
+        nickname = inputField.text.Trim();
+
+        if (mafiaClientUnified == null)
         {
-            Debug.LogError("❌ wsClient가 Inspector에서 연결되지 않았습니다!");
-            return;
+            mafiaClientUnified = MafiaClientUnified.Instance;
+            if (mafiaClientUnified == null)
+            {
+                Debug.LogError("❌ mafiaClientUnified 인스턴스 없음!");
+                return;
+            }
         }
 
-        nickname = InputField.text;
-        Debug.Log("✅ 닉네임: " + nickname);
 
-        wsClient.Init();  // WebSocket 등록 요청
+        mafiaClientUnified.ConnectToServer();
     }
 }
+

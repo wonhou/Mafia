@@ -1,27 +1,9 @@
-using TMPro;
-using UnityEngine;
+// Pass_Name.cs
+// 씬 간 데이터를 전달하기 위한 정적(static) 클래스
+// 현재는 유저가 입력한 방 이름(room_name)만 저장함
 
-public class Pass_Name : MonoBehaviour
+public static class Pass_Name
 {
-    public TMP_InputField field;
-
+    // 유저가 방 만들기 화면에서 입력한 방 이름을 저장
     public static string room_name = "";
-
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
-    void Start()
-    {
-
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-
-    }
-
-    public void pass_name()
-    {
-        room_name = field.text;
-        Debug.Log(field.text);
-    }
 }

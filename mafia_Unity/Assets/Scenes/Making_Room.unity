@@ -374,14 +374,17 @@ MonoBehaviour:
   m_GameObject: {fileID: 254880072}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: da02bb7605d8ccd4db0d0979be06ca81, type: 3}
+  m_Script: {fileID: 11500000, guid: 48c019bd159c11a4fbcf805f2450693b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  chatDisplay: {fileID: 0}
+  roomIdInput: {fileID: 0}
   chatInput: {fileID: 0}
-  startGameButton: {fileID: 0}
   roomNameInput: {fileID: 1546029572}
-  wsClient: {fileID: 579738113}
+  chatLog: {fileID: 0}
+  startGameButton: {fileID: 0}
+  playerId: 
+  playerName: 
+  roomId: 
 --- !u!1 &289543784
 GameObject:
   m_ObjectHideFlags: 0
@@ -758,7 +761,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 579738114}
-  - component: {fileID: 579738113}
+  - component: {fileID: 579738115}
   m_Layer: 0
   m_Name: Websocketclient
   m_TagString: Untagged
@@ -766,23 +769,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &579738113
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 579738112}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b6add374a4e126247bc642da5d9f3a36, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  roomIdInput: {fileID: 1546029572}
-  chatInput: {fileID: 0}
-  chatLog: {fileID: 0}
-  playerId: 
-  roomId: 
 --- !u!4 &579738114
 Transform:
   m_ObjectHideFlags: 0
@@ -798,6 +784,26 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &579738115
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 579738112}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 48c019bd159c11a4fbcf805f2450693b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  roomIdInput: {fileID: 1546029572}
+  chatInput: {fileID: 0}
+  roomNameInput: {fileID: 1546029572}
+  chatLog: {fileID: 0}
+  startGameButton: {fileID: 0}
+  playerId: 
+  playerName: 
+  roomId: 
 --- !u!1 &689803871
 GameObject:
   m_ObjectHideFlags: 0
@@ -1797,9 +1803,9 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
-      - m_Target: {fileID: 1894264709}
-        m_TargetAssemblyTypeName: Pass_Name, Assembly-CSharp
-        m_MethodName: pass_name
+      - m_Target: {fileID: 254880074}
+        m_TargetAssemblyTypeName: MafiaClientUnified, Assembly-CSharp
+        m_MethodName: CreateRoom
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
@@ -1809,9 +1815,9 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
-      - m_Target: {fileID: 254880074}
-        m_TargetAssemblyTypeName: GameStarter, Assembly-CSharp
-        m_MethodName: OnClickCreateRoom
+      - m_Target: {fileID: 1894264709}
+        m_TargetAssemblyTypeName: RoomMaking, Assembly-CSharp
+        m_MethodName: OnClickOK
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
@@ -2338,10 +2344,11 @@ MonoBehaviour:
   m_GameObject: {fileID: 1894264707}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 41c2b97cdd90b984d87706365eff8057, type: 3}
+  m_Script: {fileID: 11500000, guid: 9941c60ceb843504e980a1c214a6a102, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  field: {fileID: 1546029572}
+  roomNameInput: {fileID: 1546029572}
+  title: {fileID: 2071127228}
 --- !u!1 &1944906304
 GameObject:
   m_ObjectHideFlags: 0
@@ -2662,7 +2669,7 @@ CanvasRenderer:
 SceneRoots:
   m_ObjectHideFlags: 0
   m_Roots:
+  - {fileID: 579738114}
   - {fileID: 1394204614}
   - {fileID: 689803875}
   - {fileID: 1044941702}
-  - {fileID: 579738114}
