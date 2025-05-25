@@ -7,8 +7,8 @@ const wss = new WebSocket.Server({ port: 3000 });
 
 const rooms = {};                     // roomId -> { name, players: [playerIds], game }
 const socketMap = new Map();          // playerId -> WebSocket
-const nicknameSet = new Set();        // playerId 중복 방지 (과거 방식)
-const playerNameSet = new Set();      // playerName 중복 방지
+const nicknameSet = new Set();        // playerId 중복 방지
+const playerNameSet = new Set();      // 닉네임 중복 방지
 const playerNameMap = new Map();      // playerId -> playerName
 
 function generateRoomId() {
@@ -70,10 +70,14 @@ function exitPlayerFromRoom(playerId, roomId, options = {}) {
     delete rooms[roomId];
     console.log(`🗑️ 방 삭제됨 (${wasClosed ? "disconnect" : "leave"}): ${roomId}`);
   } else if (wasOwner) {
-    const newOwner = room.players.find(id => !id.startsWith('ai_'));
+    const nonAIPlayers = room.players.filter(id => !id.startsWith('ai_'));
+    const newOwner = nonAIPlayers.length > 0
+      ? nonAIPlayers[Math.floor(Math.random() * nonAIPlayers.length)]
+      : null;
+
     if (newOwner) {
       broadcastToRoom(roomId, { type: 'new_owner', playerId: newOwner });
-      console.log(`👑 방장 변경: ${newOwner} → ${roomId}`);
+      console.log(`👑 방장 변경됨: ${newOwner} → ${roomId}`);
     } else {
       room.players.forEach(aiId => {
         const aiSocket = socketMap.get(aiId);
@@ -102,8 +106,7 @@ wss.on('connection', (ws) => {
   ws.on('message', async (message) => {
     try {
       const msg = JSON.parse(message);
-
-      console.log("💌 수신된 메시지:", msg); // ✅ 여기!
+      console.log("💌 수신된 메시지:", msg);
 
       if (msg.type === 'register') {
         const name = msg.playerName;
@@ -122,7 +125,7 @@ wss.on('connection', (ws) => {
 
         currentPlayerId = id;
         socketMap.set(currentPlayerId, ws);
-        nicknameSet.add(currentPlayerId);         // 유지 (optional)
+        nicknameSet.add(currentPlayerId);
         playerNameSet.add(name);
         playerNameMap.set(currentPlayerId, name);
 
@@ -134,23 +137,79 @@ wss.on('connection', (ws) => {
       }
 
       if (msg.type === "create_room") {
-      const roomId = "Room_" + Math.random().toString(36).substring(2, 5); // 예시 ID 생성
-      const roomName = msg.roomName || "Untitled Room";
+        const roomId = "Room_" + Math.random().toString(36).substring(2, 5);
+        const roomName = msg.roomName || "Untitled Room";
 
-      rooms[roomId] = {
+        rooms[roomId] = {
           id: roomId,
           name: roomName,
           players: [currentPlayerId],
-      };
+        };
 
-    console.log(`🟢 방 생성됨: [${roomId}] ${roomName}`); // ✅ 원하는 형식의 로그
+        currentRoom = roomId;
 
-    ws.send(JSON.stringify({
-        type: "room_created",
-        roomId: roomId,
-        roomName: roomName
-    }));
-}
+        console.log(`🟢 방 생성됨: [${roomId}] ${roomName}`);
+
+        ws.send(JSON.stringify({
+          type: "room_created",
+          roomId: roomId,
+          roomName: roomName
+        }));
+        return;
+      }
+
+      if (msg.type === 'join_room') {
+        const { roomId, playerId } = msg;
+        const room = rooms[roomId];
+
+        if (!room) {
+          ws.send(JSON.stringify({ type: 'error', message: '❌ 방이 존재하지 않습니다.' }));
+          return;
+        }
+
+        if (!room.players.includes(playerId)) {
+          room.players.push(playerId);
+        }
+
+        currentRoom = roomId;
+        currentPlayerId = playerId;
+
+        const playerList = room.players.map((id, index) => ({
+          id,
+          name: playerNameMap.get(id) || "???",
+          slot: index,
+          isOwner: index === 0
+        }));
+
+        const isOwner = room.players[0] === playerId;
+
+        console.log(`🏠 ${playerId} 입장 → ${roomId} (${room.name})`);
+        console.log("🧑‍🤝‍🧑 현재 방 플레이어 목록:");
+        playerList.forEach(p => {
+          console.log(`  - 슬롯 ${p.slot}: ${p.name} (${p.id}) ${p.isOwner ? "👑 방장" : ""}`);
+        });
+        console.log(`📌 ${playerId}는 방장인가? → ${isOwner ? "✅ 예" : "❌ 아니오"}`);
+
+        ws.send(JSON.stringify({
+          type: 'room_info',
+          roomId,
+          roomName: room.name,
+          players: playerList,
+          isOwner
+        }));
+
+        return;
+      }
+
+      if (msg.type === 'leave_room') {
+        const { roomId, playerId } = msg;
+        exitPlayerFromRoom(playerId, roomId, {
+          notifySocket: ws,
+          sendLeftRoomMessage: true,
+          wasClosed: false
+        });
+        return;
+      }
 
     } catch (err) {
       console.error("❌ 메시지 처리 오류:", err.message);
