@@ -11,6 +11,7 @@ public class ServerMessage
     public string type;
     public string playerId;
     public string playerName;
+    public string sender;
     public string message;
     public string role;
     public string roomId;
@@ -83,6 +84,20 @@ public class LeaveRoomMessage
     }
 }
 
+[System.Serializable]
+public class UpdateReadyMessage
+{
+    public string type;
+    public ReadyPlayerStatus[] players;
+}
+
+[System.Serializable]
+public class ReadyPlayerStatus
+{
+    public string playerId;
+    public bool isReady;
+}
+
 
 
 public class MafiaClientUnified : MonoBehaviour
@@ -102,6 +117,7 @@ public class MafiaClientUnified : MonoBehaviour
     private WebSocketState lastState = WebSocketState.Closed;
     private bool isRegistered = false;
     private bool roomCreated = false;
+    private bool isReady = false;
 
     void Awake()
     {
@@ -141,9 +157,6 @@ public class MafiaClientUnified : MonoBehaviour
             Register();
             // ✅ 연결 완료되면 콜백 실행
             OnConnected?.Invoke();  // 연결 후 CreateRoom 호출을 위한 콜백 실행
-
-            if (startGameButton != null)
-                startGameButton.interactable = true;
         };
 
         websocket.OnMessage += (bytes) =>
@@ -183,11 +196,30 @@ public class MafiaClientUnified : MonoBehaviour
                         {
                             Debug.Log($"🔹 슬롯 {p.slot} | 닉네임: {p.name} | ID: {p.id} | {(p.isOwner ? "👑 방장" : "유저")}");
                         }
+
+                        // Game Start 버튼 활성화 여부 제어
+                        if (startGameButton != null)
+                            startGameButton.interactable = roomInfo.isOwner;
+
+                        var readyHandler = Object.FindFirstObjectByType<ReadyButtonHandler>();
+                        if (readyHandler != null)
+                        {
+                            readyHandler.SetReadyButtonState(!roomInfo.isOwner); // 방장이면 Ready 버튼 비활성화
+                        }
                         break;
 
                     case "left_room":
                         Debug.Log($"🚪 방 나가기 완료! roomId: {root.roomId}");
                         break;
+
+                    case "update_ready":
+                        UpdateReadyMessage readyStatus = JsonUtility.FromJson<UpdateReadyMessage>(message);
+                        foreach (var p in readyStatus.players)
+                        {
+                            // TODO: 슬롯 UI에 반영하는 코드 작성
+                        }
+                        break;
+
 
                     default:
                         Debug.Log("📦 처리되지 않은 메시지: " + message);
@@ -248,7 +280,22 @@ public class MafiaClientUnified : MonoBehaviour
                 break;
 
             case "chat":
-                chatLog.text += $"{msg.playerName}: {msg.message}\n";
+                if (string.IsNullOrEmpty(msg.sender) || string.IsNullOrEmpty(msg.message))
+                {
+                    Debug.LogWarning("⚠️ chat 메시지 누락 또는 null 발생");
+                    return;
+                }
+
+                Debug.Log($"💬 {msg.sender}: {msg.message}");
+
+                if (chatLog != null)
+                {
+                    chatLog.text += $"{msg.sender}: {msg.message}\n";
+                }
+                else
+                {
+                    Debug.LogWarning("⚠️ chatLog가 null입니다 (UI 미연결)");
+                }
                 break;
 
             case "your_role":
@@ -295,7 +342,7 @@ public class MafiaClientUnified : MonoBehaviour
         };
 
         string json = JsonUtility.ToJson(createRoomMsg);
-        websocket.SendText(json);
+        _ = websocket.SendText(json);
     }
 
     public void JoinRoom()
@@ -328,7 +375,7 @@ public class MafiaClientUnified : MonoBehaviour
 
     public void LeaveRoom()
     {
-         Debug.Log("📣 LeaveRoom() 호출됨");
+        Debug.Log("📣 LeaveRoom() 호출됨");
         if (string.IsNullOrEmpty(playerId) || string.IsNullOrEmpty(roomId))
         {
             Debug.LogError("❌ LeaveRoom 실패 - playerId 또는 roomId 없음");
@@ -358,6 +405,63 @@ public class MafiaClientUnified : MonoBehaviour
             Debug.Log("게임 시작 메시지 전송됨!");
         }
     }
+
+    public void SendReady()
+    {
+        if (websocket != null && websocket.State == WebSocketState.Open)
+        {
+            isReady = !isReady;  // 🔄 상태 토글
+
+            var msg = new
+            {
+                type = "set_ready",
+                isReady = isReady
+            };
+
+            string json = JsonUtility.ToJson(msg);
+            websocket.SendText(json);
+            Debug.Log("📤 Ready 상태 전송됨 (토글): " + json);
+        }
+        else
+        {
+            Debug.LogWarning("⚠️ WebSocket이 연결되어 있지 않음. Ready 전송 실패");
+        }
+    }
+
+    public void ResetReadyState()
+    {
+        isReady = false;
+    }
+
+    public void SendNightStart()
+    {
+        if (websocket != null && websocket.State == WebSocketState.Open)
+        {
+            string msg = "{\"type\":\"night_start\"}";
+            websocket.SendText(msg);
+            Debug.Log("🌙 밤 시작 메시지 전송됨!");
+        }
+    }
+
+    public void SendDayStart()
+    {
+        if (websocket != null && websocket.State == WebSocketState.Open)
+        {
+            websocket.SendText("{\"type\":\"day_start\"}");
+            Debug.Log("☀️ 낮 시작 메시지 전송됨!");
+        }
+    }
+
+    public void SendVoteStart()
+    {
+        if (websocket != null && websocket.State == WebSocketState.Open)
+        {
+            websocket.SendText("{\"type\":\"vote_start\"}");
+            Debug.Log("🗳️ 투표 시작 메시지 전송됨!");
+        }
+    }
+
+
 
     void Update()
     {
