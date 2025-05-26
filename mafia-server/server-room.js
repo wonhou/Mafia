@@ -10,9 +10,13 @@ const socketMap = new Map();          // playerId -> WebSocket
 const nicknameSet = new Set();        // playerId 중복 방지
 const playerNameSet = new Set();      // 닉네임 중복 방지
 const playerNameMap = new Map();      // playerId -> playerName
+const clients = {};  // playerId → WebSocket
 
-function generateRoomId() {
-  return Math.random().toString(36).substring(2, 8);
+function sendTo(playerId, message) {
+  const client = clients[playerId];
+  if (client && client.readyState === WebSocket.OPEN) {
+    client.send(JSON.stringify(message));
+  }
 }
 
 function broadcastToRoom(roomId, data) {
@@ -128,6 +132,7 @@ wss.on('connection', (ws) => {
         nicknameSet.add(currentPlayerId);
         playerNameSet.add(name);
         playerNameMap.set(currentPlayerId, name);
+        clients[id] = ws;
 
         ws.send(JSON.stringify({ type: 'register_success', playerId: currentPlayerId, playerName: name }));
         console.log(`🟢 등록됨: [${currentPlayerId}] ${name}`);
@@ -144,6 +149,9 @@ wss.on('connection', (ws) => {
           id: roomId,
           name: roomName,
           players: [currentPlayerId],
+          readyPlayers: {
+            [currentPlayerId]: true
+          }
         };
 
         currentRoom = roomId;
@@ -209,6 +217,107 @@ wss.on('connection', (ws) => {
           wasClosed: false
         });
         return;
+      }
+
+
+      if (msg.type === 'start_game') {
+        console.log("🟨 start_game 수신됨");
+        const room = rooms[currentRoom];
+        if (!room) return;
+
+        // ✅ 준비 상태 체크: 방장을 제외한 모든 유저가 Ready 상태여야 함
+        room.readyPlayers = room.readyPlayers || {};
+        const nonOwnerPlayers = room.players.filter(id => id !== room.owner && !id.startsWith('ai_'));
+        const allReady = nonOwnerPlayers.every(id => room.readyPlayers[id] === true);
+
+        if (!allReady) {
+          console.log("⛔ Ready하지 않은 유저가 있어서 게임 시작 불가");
+          return;
+        }
+
+        // 부족한 플레이어 수만큼 AI 추가
+        const currentPlayerIds = room.players;
+        const playerCount = currentPlayerIds.length;
+
+        const neededAIs = Math.max(0, 8 - playerCount);
+        const aiCandidates = ['ai_1','ai_2','ai_3','ai_4','ai_5','ai_6','ai_7'];
+        const usedIds = new Set(currentPlayerIds);
+        const availableAIs = aiCandidates.filter(id => !usedIds.has(id)).slice(0, neededAIs);
+
+        room.players.push(...availableAIs);
+
+        // 모든 플레이어 구성
+        const allPlayers = room.players.map(id => ({
+          id,
+          isAI: id.startsWith('ai_')
+        }));
+
+        // 게임 인스턴스 생성 및 시작
+        const game = new MafiaGame(allPlayers, data => broadcastToRoom(currentRoom, data), (playerId, msg) => sendTo(playerId, msg));
+        room.game = game;
+
+        // Ready 상태 초기화
+        for (const id of room.players) {
+          room.readyPlayers[id] = false;
+        }
+
+        broadcastToRoom(currentRoom, {
+          type: 'update_ready',
+          players: Object.entries(room.readyPlayers).map(([id, isReady]) => ({
+            playerId: id,
+            isReady
+          }))
+        });
+
+        console.log("🎮 게임 시작!");
+        game.startGame();
+        return;
+      }
+
+
+      if (msg.type === 'set_ready') {
+        const room = rooms[players[msg.playerId]?.roomId];
+        if (!room) return;
+
+        room.readyPlayers = room.readyPlayers || {};
+        room.readyPlayers[msg.playerId] = msg.isReady;
+
+        console.log(`✅ ${msg.playerId} Ready 상태: ${msg.isReady}`);
+
+        // 모든 유저에게 Ready 상태 브로드캐스트
+        const update = {
+          type: 'update_ready',
+          players: Object.entries(room.readyPlayers).map(([id, isReady]) => ({
+            playerId: id,
+            isReady
+          }))
+        };
+
+        broadcastToRoom(room, update);
+      }
+
+      if (msg.type === 'night_start') {
+        const room = rooms[currentRoom];
+        if (!room || !room.game) return;
+
+        console.log("🌙 밤 시작됨!");
+        room.game.startNight();  // AI 마피아/경찰/의사 행동 처리
+      }
+
+      if (msg.type === 'day_start') {
+        const room = rooms[currentRoom];
+        if (!room || !room.game) return;
+
+        console.log("☀️ 낮 시작됨!");
+        room.game.startDay();  // AI가 채팅 발언 출력 (콘솔)
+      }
+
+      if (msg.type === 'vote_start') {
+        const room = rooms[currentRoom];
+        if (!room || !room.game) return;
+
+        console.log("🗳️ 투표 시작됨!");
+        room.game.startVote();  // AI가 투표 대상 정하고 처리
       }
 
     } catch (err) {
