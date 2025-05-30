@@ -121,6 +121,13 @@ public class RoomListMessage
 }
 
 [System.Serializable]
+public class ReadyMessage
+{
+    public string type = "set_ready";
+    public bool isReady;
+}
+
+[System.Serializable]
 public class UpdateReadyMessage
 {
     public string type;
@@ -532,9 +539,8 @@ public class MafiaClientUnified : MonoBehaviour
         {
             isReady = !isReady;  // 🔄 상태 토글
 
-            var msg = new
+            var msg = new ReadyMessage
             {
-                type = "set_ready",
                 isReady = isReady
             };
 
