@@ -1,7 +1,7 @@
 using UnityEngine;
 
 public class RoomSceneInitializer : MonoBehaviour
-{   
+{
 
     void Start()
     {
@@ -21,4 +21,13 @@ public class RoomSceneInitializer : MonoBehaviour
 
         MafiaClientUnified.Instance.ConnectToServer();
     }
+
+    void OnDestroy()
+    {
+        if (MafiaClientUnified.Instance != null)
+        {
+            MafiaClientUnified.Instance.LeaveRoom();
+        }
+    }
+
 }

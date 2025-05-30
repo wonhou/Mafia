@@ -19,6 +19,12 @@ public class ServerMessage
 }
 
 [System.Serializable]
+public class ListPlayersMessage
+{
+    public string type = "list_players";
+}
+
+[System.Serializable]
 public class RegisterMessage
 {
     public string type = "register";
@@ -85,6 +91,36 @@ public class LeaveRoomMessage
 }
 
 [System.Serializable]
+public class PlayerInfo
+{
+    public string id;
+    public string name;
+    public string roomId;
+}
+
+[System.Serializable]
+public class PlayerListMessage
+{
+    public string type;
+    public PlayerInfo[] players;
+}
+
+[System.Serializable]
+public class RoomSummary
+{
+    public string roomId;
+    public string roomName;
+    public int playerCount;
+}
+
+[System.Serializable]
+public class RoomListMessage
+{
+    public string type;
+    public RoomSummary[] rooms;
+}
+
+[System.Serializable]
 public class UpdateReadyMessage
 {
     public string type;
@@ -98,7 +134,11 @@ public class ReadyPlayerStatus
     public bool isReady;
 }
 
-
+[System.Serializable]
+public class ListRoomsMessage
+{
+    public string type = "list_rooms";
+}
 
 public class MafiaClientUnified : MonoBehaviour
 {
@@ -108,10 +148,13 @@ public class MafiaClientUnified : MonoBehaviour
     public TMP_InputField chatInput;
     public TMP_Text chatLog;
     public Button startGameButton;
+    public TextMeshProUGUI roomNameText;
+    public TextMeshProUGUI roomIdText;
 
     public string playerId;
     public string playerName;
     public string roomId;
+    public bool isOwner = false;
 
     private WebSocket websocket;
     private WebSocketState lastState = WebSocketState.Closed;
@@ -185,27 +228,58 @@ public class MafiaClientUnified : MonoBehaviour
                         break;
 
                     case "update_players":
-                        Debug.Log("🧑‍🤝‍🧑 플레이어 목록 갱신 메시지 수신 (현재 무시 중)");
+                        Debug.Log("📡 접속 중인 플레이어 목록 수신됨");
+
+                        PlayerListMessage list = JsonUtility.FromJson<PlayerListMessage>(message);
+
+                        if (list.players != null)
+                        {
+                            foreach (var player in list.players)
+                            {
+                                string roomStatus = string.IsNullOrEmpty(player.roomId) ? "🟢 로비" : $"🏠 {player.roomId}";
+                                Debug.Log($"👤 {player.name} ({player.id}) - {roomStatus}");
+                            }
+                        }
+                        else
+                        {
+                            Debug.LogWarning("⚠ 플레이어 목록이 null입니다.");
+                        }
+
+                        var listUI = FindFirstObjectByType<PlayerListUIManager>();
+                        if (listUI != null)
+                        {
+                            listUI.UpdatePlayerList(list.players);
+                        }
                         break;
 
                     case "room_info":
                         RoomInfoMessage roomInfo = JsonUtility.FromJson<RoomInfoMessage>(message);
                         Debug.Log($"🏠 방 정보 수신됨 - RoomID: {roomInfo.roomId}, RoomName: {roomInfo.roomName}, 방장 여부: {roomInfo.isOwner}");
 
+                        isOwner = roomInfo.isOwner; // ✅ 여기 추가!
+
                         foreach (RoomPlayer p in roomInfo.players)
                         {
                             Debug.Log($"🔹 슬롯 {p.slot} | 닉네임: {p.name} | ID: {p.id} | {(p.isOwner ? "👑 방장" : "유저")}");
                         }
 
-                        // Game Start 버튼 활성화 여부 제어
-                        if (startGameButton != null)
-                            startGameButton.interactable = roomInfo.isOwner;
+                        // ✅ RoomSceneManager에게 UI 갱신 요청
+                        if (RoomSceneManager.Instance != null)
+                        {
+                            RoomSceneManager.Instance.SetRoomInfo(roomInfo.roomName, roomInfo.roomId, roomInfo.isOwner);
+                        }
+                        else
+                        {
+                            Debug.LogWarning("❗ RoomSceneManager.Instance가 null입니다. UI 갱신 실패");
+                        }
 
+                        // ✅ Ready 버튼 제어 (UI 분리되어 있음)
                         var readyHandler = Object.FindFirstObjectByType<ReadyButtonHandler>();
                         if (readyHandler != null)
                         {
                             readyHandler.SetReadyButtonState(!roomInfo.isOwner); // 방장이면 Ready 버튼 비활성화
                         }
+
                         break;
 
                     case "left_room":
@@ -220,6 +294,20 @@ public class MafiaClientUnified : MonoBehaviour
                         }
                         break;
 
+                    case "room_list":
+                        Debug.Log("📥 방 목록 수신됨");
+                        var listMsg = JsonUtility.FromJson<RoomListMessage>(message);
+
+                        RoomListManager manager = FindFirstObjectByType<RoomListManager>();
+                        if (manager != null)
+                        {
+                            manager.DisplayRoomList(listMsg.rooms);
+                        }
+                        else
+                        {
+                            Debug.LogError("❌ RoomListManager가 씬에 없어서 방 목록 표시 실패!");
+                        }
+                        break;
 
                     default:
                         Debug.Log("📦 처리되지 않은 메시지: " + message);
@@ -359,6 +447,19 @@ public class MafiaClientUnified : MonoBehaviour
         websocket.SendText(json);
     }
 
+    public void JoinRoomDirect(string customRoomId, string playerId)
+    {
+        // ✅ 내부 저장 추가
+        this.roomId = customRoomId;
+        this.playerId = playerId;
+
+        JoinRoomMessage joinRoomMsg = new JoinRoomMessage(customRoomId, playerId);
+        string json = JsonUtility.ToJson(joinRoomMsg);
+        websocket.SendText(json);
+
+        Debug.Log("📤 JoinRoomDirect 전송됨: " + json);
+    }
+
 
     private void TryJoinRoom()
     {
@@ -376,6 +477,7 @@ public class MafiaClientUnified : MonoBehaviour
     public void LeaveRoom()
     {
         Debug.Log("📣 LeaveRoom() 호출됨");
+
         if (string.IsNullOrEmpty(playerId) || string.IsNullOrEmpty(roomId))
         {
             Debug.LogError("❌ LeaveRoom 실패 - playerId 또는 roomId 없음");
@@ -383,10 +485,28 @@ public class MafiaClientUnified : MonoBehaviour
         }
 
         var leaveMsg = new LeaveRoomMessage(roomId, playerId);
-
         string json = JsonUtility.ToJson(leaveMsg);
         websocket.SendText(json);
         Debug.Log("📤 LeaveRoom 메시지 전송됨: " + json);
+
+        // ✅ 내부 상태 초기화
+        roomId = "";
+        isOwner = false;
+
+        // ✅ UI 초기화 (필요할 경우)
+        if (roomNameText != null) roomNameText.text = "";
+        if (roomIdText != null) roomIdText.text = "";
+        if (startGameButton != null) startGameButton.interactable = false;
+
+        Debug.Log("🧹 내부 상태 초기화 완료 (roomId 제거, UI 리셋)");
+    }
+
+    public void RequestPlayerList()
+    {
+        var msg = new ListPlayersMessage();  // ✅ 클래스로 생성
+        string json = JsonUtility.ToJson(msg);
+        websocket.SendText(json);
+        Debug.Log("📤 플레이어 목록 요청 전송됨: " + json);
     }
 
     public void SendChat(string msg)
@@ -461,7 +581,34 @@ public class MafiaClientUnified : MonoBehaviour
         }
     }
 
+    public void RequestRoomList()
+        {
+            if (websocket != null && websocket.State == WebSocketState.Open)
+            {
+                var msg = new { type = "list_rooms" };
+                string json = JsonUtility.ToJson(msg);
+                websocket.SendText(json);
+                Debug.Log("📤 방 목록 요청 전송됨!");
+            }
+        }
 
+    public bool IsConnected()
+    {
+        return websocket != null && websocket.State == WebSocketState.Open;
+    }
+
+    public void SendRaw(string json)
+    {
+        if (IsConnected())
+        {
+            websocket.SendText(json);
+            Debug.Log("📡 SendRaw 전송됨: " + json);
+        }
+        else
+        {
+            Debug.LogWarning("❗ WebSocket이 연결되지 않음!");
+        }
+    }
 
     void Update()
     {
@@ -477,6 +624,7 @@ public class MafiaClientUnified : MonoBehaviour
 
     private async void OnApplicationQuit()
     {
+        LeaveRoom();
         if (websocket != null && websocket.State == WebSocketState.Open)
             await websocket.Close();
     }
