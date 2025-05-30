@@ -311,13 +311,14 @@ wss.on('connection', (ws) => {
 
 
       if (msg.type === 'set_ready') {
-        const room = rooms[players[msg.playerId]?.roomId];
+        const room = rooms[currentRoom];
+
         if (!room) return;
 
         room.readyPlayers = room.readyPlayers || {};
         room.readyPlayers[msg.playerId] = msg.isReady;
 
-        console.log(`✅ ${msg.playerId} Ready 상태: ${msg.isReady}`);
+        console.log(`✅ ${currentPlayerId} Ready 상태: ${msg.isReady}`);
 
         // 모든 유저에게 Ready 상태 브로드캐스트
         const update = {
