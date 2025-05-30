@@ -9,6 +9,7 @@ const rooms = {};                     // roomId -> { name, players: [playerIds],
 const socketMap = new Map();          // playerId -> WebSocket
 const nicknameSet = new Set();        // playerId 중복 방지
 const playerNameSet = new Set();      // 닉네임 중복 방지
+const playerRoomMap = new Map(); // playerId -> roomId
 const playerNameMap = new Map();      // playerId -> playerName
 const clients = {};  // playerId → WebSocket
 
@@ -181,6 +182,7 @@ wss.on('connection', (ws) => {
 
         currentRoom = roomId;
         currentPlayerId = playerId;
+        playerRoomMap.set(playerId, roomId);
 
         const playerList = room.players.map((id, index) => ({
           id,
@@ -216,9 +218,42 @@ wss.on('connection', (ws) => {
           sendLeftRoomMessage: true,
           wasClosed: false
         });
+        playerRoomMap.delete(playerId);
         return;
       }
 
+      if (msg.type === 'list_rooms') {
+        const roomList = Object.entries(rooms).map(([roomId, room]) => ({
+          roomId,
+          roomName: room.name,
+          playerCount: room.players.length
+        }));
+
+        ws.send(JSON.stringify({
+          type: 'room_list',
+          rooms: roomList
+        }));
+        return;
+      }
+
+      if (msg.type === "list_players") {
+        const players = [];
+
+        Object.entries(clients).forEach(([id, ws]) => {
+          players.push({
+            id,
+            name: playerNameMap.get(id),
+            roomId: playerRoomMap.get(id) ?? null
+          });
+        });
+
+        const response = {
+          type: "update_players",
+          players
+        };
+        
+        ws.send(JSON.stringify(response));
+      }
 
       if (msg.type === 'start_game') {
         console.log("🟨 start_game 수신됨");
@@ -338,6 +373,7 @@ wss.on('connection', (ws) => {
       playerNameMap.delete(currentPlayerId);
     }
 
+    playerRoomMap.delete(currentPlayerId);
     console.log(`🔴 연결 종료: ${currentPlayerId}`);
 
     if (currentRoom && rooms[currentRoom]) {
@@ -350,3 +386,41 @@ wss.on('connection', (ws) => {
 });
 
 console.log("🚀 메인 서버 실행 중 (port 3000)");
+
+rooms["TestRoom1"] = {
+  id: "TestRoom1",
+  name: "Test1",
+  players: ["test_user_1", "test_user_2", "test_user_3"]
+};
+
+rooms["TestRoom2"] = {
+  id: "TestRoom2",
+  name: "Test2",
+  players: ["test_user_4", "test_user_5"]
+};
+
+rooms["TestRoom3"] = {
+  id: "TestRoom3",
+  name: "Test3",
+  players: ["test_user_6", "test_user_7", "test_user_8", "test_user_9"]
+};
+
+rooms["TestRoom4"] = {
+  id: "TestRoom4",
+  name: "Test4",
+  players: ["test_user_10"]
+};
+
+rooms["TestRoom5"] = {
+  id: "TestRoom5",
+  name: "Test5",
+  players: ["test_user_11", "test_user_12"]
+};
+
+[
+  "test_user_1", "test_user_2", "test_user_3", "test_user_4",
+  "test_user_5", "test_user_6", "test_user_7", "test_user_8",
+  "test_user_9", "test_user_10", "test_user_11", "test_user_12"
+].forEach(id => {
+  playerNameMap.set(id, id);
+});
