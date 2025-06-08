@@ -31,13 +31,13 @@ public class VoteMafia : MonoBehaviour
         YesOrNo.SetActive(true);
         ControlAllButtons(false);
         buttonText = clickedButton.GetComponentInChildren<TextMeshProUGUI>().text;
-        yostitle.text = buttonText + "¸¦ Á×ÀÌ½Ã°Ú½À´Ï±î?";
+        yostitle.text = buttonText + "ï¿½ï¿½ ï¿½ï¿½ï¿½Ì½Ã°Ú½ï¿½ï¿½Ï±ï¿½?";
         killed = clickedButton;
     }
 
     void Yes()
     {
-        Debug.Log(buttonText + "¸¦ Á×ÀÌ¼Ì½À´Ï´Ù.");
+        Debug.Log(buttonText + "ï¿½ï¿½ ï¿½ï¿½ï¿½Ì¼Ì½ï¿½ï¿½Ï´ï¿½.");
         Players.Remove(killed);
         killed.interactable = false;
         ControlAllButtons(true);
@@ -54,7 +54,7 @@ public class VoteMafia : MonoBehaviour
     {
         foreach (Button btn in Players)
         {
-            btn.interactable = conditions; //¹öÆ°À» ´©¸¦ ¼ö ÀÖ°Ô ÇÒ °ÍÀÌ³Ä
+            btn.interactable = conditions; //ï¿½ï¿½Æ°ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½Ö°ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½Ì³ï¿½
         }
     }
 }

@@ -4,6 +4,7 @@ using UnityEngine.UI;
 using TMPro;
 using System.Text;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 
 [System.Serializable]
 public class ServerMessage
@@ -161,6 +162,8 @@ public class MafiaClientUnified : MonoBehaviour
     public string playerId;
     public string playerName;
     public string roomId;
+    public RoomPlayer[] currentPlayers;
+    public Dictionary<string, bool> readyStatusMap = new();
     public bool isOwner = false;
 
     private WebSocket websocket;
@@ -263,7 +266,8 @@ public class MafiaClientUnified : MonoBehaviour
                         RoomInfoMessage roomInfo = JsonUtility.FromJson<RoomInfoMessage>(message);
                         Debug.Log($"🏠 방 정보 수신됨 - RoomID: {roomInfo.roomId}, RoomName: {roomInfo.roomName}, 방장 여부: {roomInfo.isOwner}");
 
-                        isOwner = roomInfo.isOwner; // ✅ 여기 추가!
+                        isOwner = roomInfo.isOwner;
+                        currentPlayers = roomInfo.players;
 
                         foreach (RoomPlayer p in roomInfo.players)
                         {
@@ -295,11 +299,24 @@ public class MafiaClientUnified : MonoBehaviour
 
                     case "update_ready":
                         UpdateReadyMessage readyStatus = JsonUtility.FromJson<UpdateReadyMessage>(message);
+
+                        if (readyStatusMap == null)
+                        {
+                            readyStatusMap = new Dictionary<string, bool>();
+                        }
+
+                        readyStatusMap.Clear();
+
+                        if (readyStatus.players == null) break;
+
                         foreach (var p in readyStatus.players)
                         {
-                            // TODO: 슬롯 UI에 반영하는 코드 작성
+                            readyStatusMap[p.playerId] = p.isReady;
                         }
+
+                        RoomSceneManager.Instance?.UpdatePlayerCards();
                         break;
+
 
                     case "room_list":
                         Debug.Log("📥 방 목록 수신됨");
