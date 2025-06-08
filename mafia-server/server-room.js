@@ -83,6 +83,21 @@ function exitPlayerFromRoom(playerId, roomId, options = {}) {
     if (newOwner) {
       broadcastToRoom(roomId, { type: 'new_owner', playerId: newOwner });
       console.log(`👑 방장 변경됨: ${newOwner} → ${roomId}`);
+
+      const playerList = room.players.map((id, index) => ({
+        id,
+        name: playerNameMap.get(id) || "???",
+        slot: index,
+        isOwner: index === 0
+      }));
+
+      broadcastToRoom(roomId, {
+        type: 'room_info',
+        roomId,
+        roomName: room.name,
+        players: playerList,
+        isOwner: false // 개별 처리 필요 없고, 각 플레이어가 클라이언트에서 판단함
+      });
     } else {
       room.players.forEach(aiId => {
         const aiSocket = socketMap.get(aiId);
@@ -262,6 +277,7 @@ wss.on('connection', (ws) => {
 
         // ✅ 준비 상태 체크: 방장을 제외한 모든 유저가 Ready 상태여야 함
         room.readyPlayers = room.readyPlayers || {};
+        const ownerId = room.players[0];
         const nonOwnerPlayers = room.players.filter(id => id !== room.owner && !id.startsWith('ai_'));
         const allReady = nonOwnerPlayers.every(id => room.readyPlayers[id] === true);
 
@@ -316,7 +332,7 @@ wss.on('connection', (ws) => {
         if (!room) return;
 
         room.readyPlayers = room.readyPlayers || {};
-        room.readyPlayers[msg.playerId] = msg.isReady;
+        room.readyPlayers[currentPlayerId] = msg.isReady;
 
         console.log(`✅ ${currentPlayerId} Ready 상태: ${msg.isReady}`);
 
@@ -329,7 +345,7 @@ wss.on('connection', (ws) => {
           }))
         };
 
-        broadcastToRoom(room, update);
+        broadcastToRoom(currentRoom, update);
       }
 
       if (msg.type === 'night_start') {
