@@ -69,7 +69,12 @@ class MafiaGame {
     this.humanNightActions = {};
     console.log(`🌙 밤 ${this.day} 시작`);
 
-    // 밤 행동은 15초 후에 처리
+    setTimeout(() => {
+      this.broadcast({
+        type: "night_end"
+      });
+    }, 14000); // 1초 여유
+
     setTimeout(async () => {
       if (!this.isAlive) return;
       const nightActions = await this.collectNightActions();
@@ -153,12 +158,7 @@ class MafiaGame {
       }
     }
 
-    if (targetToKill && targetToKill === doctorTarget) {
-      console.log(`💉 의사가 ${targetToKill}을 살렸습니다!`);
-      targetToKill = null;
-    }
-
-    if (targetToKill) {
+    if (targetToKill && targetToKill !== doctorTarget) {
       const victim = this.players.find(p => p.id === targetToKill);
       if (victim) {
         victim.alive = false;
@@ -170,18 +170,16 @@ class MafiaGame {
           reason: "night"
         });
       }
-    } else {
-      console.log('🌙 이번 밤에는 아무도 죽지 않았습니다');
-    }
-
-      // ✅ saved 메시지 추가 (죽은 사람 없음 + 의사가 살림)
-    if (doctorTarget && mafiaTargets.includes(doctorTarget)) {
+    } else if (doctorTarget && mafiaTargets.includes(doctorTarget)) {
+      console.log(`💉 의사가 ${doctorTarget}을 살렸습니다!`);
       this.broadcast({
         type: "player_eliminated",
         deadPlayers: [],
-        reason: "saved"
+        reason: "saved",
+        savedId: doctorTarget
       });
     } else {
+      console.log('🌙 이번 밤에는 아무도 죽지 않았습니다');
       this.broadcast({
         type: "player_eliminated",
         deadPlayers: [],
