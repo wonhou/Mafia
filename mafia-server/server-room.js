@@ -69,6 +69,7 @@ function exitPlayerFromRoom(playerId, roomId, options = {}) {
   const wasOwner = room.players[0] === playerId;
 
   room.players = room.players.filter(id => id !== playerId);
+  delete room.readyPlayers?.[playerId];
   broadcastToRoom(roomId, { type: 'player_left', playerId });
 
   if (room.players.length === 0) {
@@ -88,7 +89,8 @@ function exitPlayerFromRoom(playerId, roomId, options = {}) {
         id,
         name: playerNameMap.get(id) || "???",
         slot: index,
-        isOwner: index === 0
+        isOwner: index === 0,
+        isAlive: room.game?.players.find(p => p.id === id)?.alive ?? true
       }));
 
       broadcastToRoom(roomId, {
@@ -105,6 +107,13 @@ function exitPlayerFromRoom(playerId, roomId, options = {}) {
           aiSocket.send(JSON.stringify({ type: 'room_destroyed', roomId }));
         }
       });
+        // 게임 중이면 인스턴스 제거 처리
+        if (room.game) {
+          console.log(`🧹 진행 중이던 게임 인스턴스 제거: ${roomId}`);
+          room.game?.terminate();
+          room.game = null;
+        }
+
       delete rooms[roomId];
       console.log(`🗑️ 방 삭제됨 (AI만 남음): ${roomId}`);
     }
@@ -238,6 +247,7 @@ wss.on('connection', (ws) => {
       }
 
       if (msg.type === 'list_rooms') {
+        console.log("📦 list_rooms 요청 수신됨");
         const roomList = Object.entries(rooms).map(([roomId, room]) => ({
           roomId,
           roomName: room.name,
@@ -303,6 +313,11 @@ wss.on('connection', (ws) => {
           isAI: id.startsWith('ai_')
         }));
 
+        // ai 닉네임
+        for (const aiId of availableAIs) {
+          playerNameMap.set(aiId, aiId);  // 또는 playerNameMap.set(aiId, "AI_" + aiId.split("_")[1]);
+        }
+
         // 게임 인스턴스 생성 및 시작
         const game = new MafiaGame(allPlayers, data => broadcastToRoom(currentRoom, data), (playerId, msg) => sendTo(playerId, msg));
         room.game = game;
@@ -318,6 +333,22 @@ wss.on('connection', (ws) => {
             playerId: id,
             isReady
           }))
+        });
+        
+        const playerList = room.players.map((id, index) => ({
+          id,
+          name: playerNameMap.get(id) || "???",
+          slot: index,
+          isOwner: index === 0,
+          isAlive: game.players.find(p => p.id === id)?.alive ?? true
+        }));
+
+        broadcastToRoom(currentRoom, {
+          type: 'room_info',
+          roomId: currentRoom,
+          roomName: room.name,
+          players: playerList,
+          isOwner: false // 클라이언트가 각자 판단
         });
 
         console.log("🎮 게임 시작!");
@@ -372,6 +403,13 @@ wss.on('connection', (ws) => {
         room.game.startVote();  // AI가 투표 대상 정하고 처리
       }
 
+      if (msg.type === 'night_action') {
+        const room = rooms[currentRoom];
+        if (!room || !room.game) return;
+        // 행동 저장 (유저용)
+        room.game.receiveHumanNightAction(currentPlayerId, msg.action, msg.target);
+      }
+
     } catch (err) {
       console.error("❌ 메시지 처리 오류:", err.message);
       console.error(err.stack);
@@ -391,6 +429,7 @@ wss.on('connection', (ws) => {
     }
 
     playerRoomMap.delete(currentPlayerId);
+    delete clients[currentPlayerId];
     console.log(`🔴 연결 종료: ${currentPlayerId}`);
 
     if (currentRoom && rooms[currentRoom]) {
@@ -399,6 +438,8 @@ wss.on('connection', (ws) => {
         wasClosed: true
       });
     }
+    
+    broadcastPlayerList();
   });
 });
 
