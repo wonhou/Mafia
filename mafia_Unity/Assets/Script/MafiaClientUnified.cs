@@ -5,6 +5,8 @@ using TMPro;
 using System.Text;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using System.Linq;
+using System.Collections;
 
 [System.Serializable]
 public class ServerMessage
@@ -36,7 +38,11 @@ public class RegisterMessage
         this.playerName = playerName;
     }
 }
-
+[System.Serializable]
+public class SimpleMessage
+{
+    public string message;
+}
 [System.Serializable]
 public class CreateRoomMessage
 {
@@ -51,6 +57,15 @@ public class RoomPlayer
     public string name;
     public int slot;
     public bool isOwner;
+    public bool isAlive;
+}
+
+[System.Serializable]
+public class PlayerEliminatedMessage
+{
+    public string type;
+    public string[] deadPlayers;
+    public string reason;
 }
 
 [System.Serializable]
@@ -161,7 +176,9 @@ public class MafiaClientUnified : MonoBehaviour
 
     public string playerId;
     public string playerName;
+    public string roomName;
     public string roomId;
+    public string currentRole;
     public RoomPlayer[] currentPlayers;
     public Dictionary<string, bool> readyStatusMap = new();
     public bool isOwner = false;
@@ -267,28 +284,39 @@ public class MafiaClientUnified : MonoBehaviour
                         Debug.Log($"🏠 방 정보 수신됨 - RoomID: {roomInfo.roomId}, RoomName: {roomInfo.roomName}, 방장 여부: {roomInfo.isOwner}");
 
                         isOwner = roomInfo.isOwner;
+                        roomName = roomInfo.roomName;
+                        roomId = roomInfo.roomId;
                         currentPlayers = roomInfo.players;
 
-                        foreach (RoomPlayer p in roomInfo.players)
-                        {
-                            Debug.Log($"🔹 슬롯 {p.slot} | 닉네임: {p.name} | ID: {p.id} | {(p.isOwner ? "👑 방장" : "유저")}");
-                        }
+                        // ✅ RoomScene에서만 UI 갱신
+                        string sceneName = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+                        Debug.Log($"🧭 현재 씬 이름: {sceneName}");
 
-                        // ✅ RoomSceneManager에게 UI 갱신 요청
-                        if (RoomSceneManager.Instance != null)
+                        if (sceneName == "Room")
                         {
-                            RoomSceneManager.Instance.SetRoomInfo(roomInfo.roomName, roomInfo.roomId, roomInfo.isOwner);
-                        }
-                        else
-                        {
-                            Debug.LogWarning("❗ RoomSceneManager.Instance가 null입니다. UI 갱신 실패");
-                        }
+                            if (RoomSceneManager.Instance != null && RoomSceneManager.Instance.gameObject != null)
+                            {
+                                Debug.Log("✅ RoomSceneManager 인스턴스 존재함 → 코루틴 실행");
+                                StartCoroutine(WaitAndSetRoomInfo(roomInfo));
+                            }
+                            else
+                            {
+                                Debug.LogWarning("🚫 RoomSceneManager.Instance가 null이거나 이미 파괴됨");
+                            }
 
-                        // ✅ Ready 버튼 제어 (UI 분리되어 있음)
-                        var readyHandler = Object.FindFirstObjectByType<ReadyButtonHandler>();
-                        if (readyHandler != null)
+                            if (Object.FindFirstObjectByType<ReadyButtonHandler>() != null)
+                            {
+                                StartCoroutine(WaitUntilReadyButtonAppearsAndSet(roomInfo));
+                            }
+                            else
+                            {
+                                Debug.LogWarning("⚠️ ReadyButtonHandler가 씬에 존재하지 않음");
+                            }
+                        }
+                        else if (sceneName == "Game_Room")
                         {
-                            readyHandler.SetReadyButtonState(!roomInfo.isOwner); // 방장이면 Ready 버튼 비활성화
+                            Debug.Log("🕐 GameSceneManager 인스턴스 대기 시작");
+                            StartCoroutine(WaitUntilGameSceneManagerReady(roomInfo));
                         }
 
                         break;
@@ -314,7 +342,16 @@ public class MafiaClientUnified : MonoBehaviour
                             readyStatusMap[p.playerId] = p.isReady;
                         }
 
-                        RoomSceneManager.Instance?.UpdatePlayerCards();
+                        sceneName = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+                        if (sceneName == "Room")
+                        {
+                            RoomSceneManager.Instance?.UpdatePlayerCards();
+                        }
+                        else if (sceneName == "Game_Room")
+                        {
+                            GameSceneManager.Instance?.UpdatePlayerUI(currentPlayers);
+                        }
+
                         break;
 
 
@@ -331,6 +368,16 @@ public class MafiaClientUnified : MonoBehaviour
                         {
                             Debug.LogError("❌ RoomListManager가 씬에 없어서 방 목록 표시 실패!");
                         }
+                        break;
+
+                    case "night_start":
+                        ChatManager.Instance?.AddSystemMessage("밤이 되었습니다. 마피아, 의사, 경찰은 행동을 선택하세요.");
+                        break;
+                    case "day_start":
+                        ChatManager.Instance?.AddSystemMessage("낮이 되었습니다. 자유롭게 토론을 시작하세요.");
+                        break;
+                    case "vote_start":
+                        ChatManager.Instance?.AddSystemMessage("투표가 시작되었습니다. 처형할 사람을 선택하세요.");
                         break;
 
                     default:
@@ -373,11 +420,11 @@ public class MafiaClientUnified : MonoBehaviour
                 playerName = msg.playerName;
                 isRegistered = true;
                 Debug.Log($"🟢 등록 성공! ID: {playerId}, 이름: {playerName}");
-                TryJoinRoom();
                 break;
 
             case "room_created":
                 roomId = msg.roomId;
+                roomName = msg.roomName;
                 roomCreated = true;
                 Debug.Log($"✅ 방 생성 완료! ID: {msg.roomId}, 이름: {msg.roomName}");
 
@@ -411,7 +458,130 @@ public class MafiaClientUnified : MonoBehaviour
                 break;
 
             case "your_role":
-                Debug.Log($"🎭 역할: {msg.role}");
+                currentRole = msg.role;
+
+                string roleKor = currentRole switch {
+                    "mafia" => "마피아",
+                    "doctor" => "의사",
+                    "police" => "경찰",
+                    _ => "시민"
+                };
+
+                Debug.Log($"🎭 역할: {roleKor}");
+
+                // ✅ 시스템 메시지 출력
+                if (ChatManager.Instance != null)
+                {
+                    ChatManager.Instance.AddSystemMessage($"당신의 직업은 <b>{roleKor}</b> 입니다");
+                    ChatManager.Instance.AddSystemMessage("밤이 시작되었습니다. 각자의 역할에 맞는 행동을 선택해주세요.");
+                }
+                else
+                {
+                    Debug.LogWarning("⚠️ ChatManager.Instance가 null입니다!");
+                }
+                
+                if (GameSceneManager.Instance != null)
+                {
+                    GameSceneManager.Instance.SetRoomMeta(roomName, roomId);
+                    GameSceneManager.Instance.SetTurn(1, "밤");
+                }
+                else
+                {
+                    Debug.LogWarning("❗ GameSceneManager.Instance가 null입니다");
+                }
+
+                StartCoroutine(WaitAndShowTargetSelectUI());
+                break;
+
+            case "night_start":
+                var night = JsonUtility.FromJson<SimpleMessage>(msg.message);
+                ChatManager.Instance?.AddSystemMessage(night.message);
+                break;
+
+            case "day_start":
+                var day = JsonUtility.FromJson<SimpleMessage>(msg.message);
+                ChatManager.Instance?.AddSystemMessage(day.message);
+                break;
+
+            case "night_end":
+                string targetId = TargetSelectUIManager.Instance.GetSelectedTarget();
+                if (!string.IsNullOrEmpty(targetId))
+                {
+                    string role = MafiaClientUnified.Instance.currentRole;
+                    string action = role switch {
+                        "mafia" => "kill",
+                        "doctor" => "save",
+                        "police" => "investigate",
+                        _ => null
+                    };
+
+                    if (!string.IsNullOrEmpty(action))
+                    {
+                        MafiaClientUnified.Instance.SendNightAction(action, targetId);
+                        Debug.Log($"📤 자동 행동 전송됨: {action} → {targetId}");
+                    }
+                }
+                break;
+            case "player_eliminated":
+                var eliminated = JsonUtility.FromJson<PlayerEliminatedMessage>(msg.message);
+
+                foreach (string deadId in eliminated.deadPlayers)
+                {
+                    var player = currentPlayers.FirstOrDefault(p => p.id == deadId);
+                    if (player != null) player.isAlive = false;
+                }
+
+                GameSceneManager.Instance?.UpdatePlayerUI(currentPlayers);
+
+                if (eliminated.deadPlayers.Length > 0)
+                {
+                    string deadNames = string.Join(", ", eliminated.deadPlayers.Select(id =>
+                    {
+                        var p = currentPlayers.FirstOrDefault(x => x.id == id);
+                        return p != null ? p.name : id;
+                    }));
+
+                    ChatManager.Instance?.AddSystemMessage($"{deadNames}님이 밤에 사망했습니다.", Color.red);
+                }
+                else
+                {
+                    // ✅ 아무도 죽지 않았고, reason이 "saved"인 경우
+                    if (!string.IsNullOrEmpty(eliminated.reason) && eliminated.reason == "saved")
+                    {
+                        // 구조상 누가 살아났는지는 알 수 없으니 메시지만 출력
+                        ChatManager.Instance?.AddSystemMessage("의사에 의해 한 명이 살아났습니다.", Color.cyan);
+                    }
+                    else
+                    {
+                        ChatManager.Instance?.AddSystemMessage("아무도 죽지 않았습니다.");
+                    }
+                }
+
+                // UI 갱신
+                if (TargetSelectUIManager.Instance != null)
+                {
+                    List<string> aliveIds = currentPlayers.Where(p => p.isAlive).Select(p => p.id).ToList();
+                    TargetSelectUIManager.Instance.Show(aliveIds);
+                }
+                break;
+            
+            case "vote_result":
+                string votedId = msg.message;
+
+                if (!string.IsNullOrEmpty(votedId))
+                {
+                    var votedPlayer = currentPlayers.FirstOrDefault(p => p.id == votedId);
+                    string votedName = votedPlayer != null ? votedPlayer.name : votedId;
+
+                    ChatManager.Instance?.AddSystemMessage($"{votedName}님이 투표로 처형당했습니다.", Color.red);
+                    if (votedPlayer != null) votedPlayer.isAlive = false;
+                }
+                else
+                {
+                    ChatManager.Instance?.AddSystemMessage("투표 결과 동률입니다. 아무도 처형되지 않았습니다.");
+                }
+
+                GameSceneManager.Instance?.UpdatePlayerUI(currentPlayers);
                 break;
 
             case "game_over":
@@ -434,6 +604,112 @@ public class MafiaClientUnified : MonoBehaviour
         string json = JsonUtility.ToJson(msg);
         websocket.SendText(json);
         Debug.Log("📌 Register 전송됨: " + json);
+    }
+
+    private IEnumerator WaitAndShowTargetSelectUI()
+    {
+        // 최대 2초 정도 대기 (Instance 등록될 때까지)
+        float timeout = 2f;
+        while (TargetSelectUIManager.Instance == null && timeout > 0f)
+        {
+            yield return null;
+            timeout -= Time.deltaTime;
+        }
+
+        if (TargetSelectUIManager.Instance != null)
+        {
+            List<string> aliveIds = currentPlayers
+                .Where(p => p.isAlive)
+                .Select(p => p.id)
+                .ToList();
+
+            TargetSelectUIManager.Instance.Show(aliveIds);
+        }
+        else
+        {
+            Debug.LogWarning("🚫 타겟 UI 초기화 시간 초과");
+        }
+    }
+
+    private IEnumerator WaitAndSetRoomInfo(RoomInfoMessage roomInfo)
+    {
+        float timeout = 3f;
+
+        while (timeout > 0f)
+        {
+            if (RoomSceneManager.Instance != null && RoomSceneManager.Instance.gameObject != null)
+            {
+                break;
+            }
+            yield return null;
+            timeout -= Time.deltaTime;
+        }
+
+        if (RoomSceneManager.Instance != null && RoomSceneManager.Instance.gameObject != null)
+        {
+            RoomSceneManager.Instance.SetRoomInfo(roomInfo.roomName, roomInfo.roomId, roomInfo.isOwner);
+        }
+        else
+        {
+            Debug.LogWarning("🚫 RoomSceneManager.Instance가 null이거나 이미 파괴됨");
+        }
+    }
+
+    private IEnumerator WaitUntilReadyButtonAppearsAndSet(RoomInfoMessage roomInfo)
+    {
+        float timeout = 3f;
+        ReadyButtonHandler readyHandler = null;
+
+        while ((readyHandler = Object.FindFirstObjectByType<ReadyButtonHandler>()) == null && timeout > 0f)
+        {
+            yield return null;
+            timeout -= Time.deltaTime;
+        }
+
+        if (readyHandler != null)
+        {
+            // ✅ 현재 플레이어가 방장인지 판단
+            string myId = MafiaClientUnified.Instance.playerId;
+            bool isMeOwner = false;
+
+            foreach (var p in roomInfo.players)
+            {
+                if (p.id == myId)
+                {
+                    isMeOwner = p.isOwner;
+                    break;
+                }
+            }
+            readyHandler.SetReadyButtonState(!isMeOwner); // 방장이 아니면 Ready 버튼 활성화
+        }
+        else
+        {
+            Debug.LogWarning("⚠️ ReadyButtonHandler 초기화 실패");
+        }
+    }
+
+    private IEnumerator WaitUntilGameSceneManagerReady(RoomInfoMessage roomInfo)
+    {
+        float timeout = 3f;
+
+        while ((GameSceneManager.Instance == null || GameSceneManager.Instance.playerSlots == null
+            || GameSceneManager.Instance.playerSlots.Length < 8
+            || GameSceneManager.Instance.playerSlots.Any(s => s == null)) && timeout > 0f)
+        {
+            yield return null;
+            timeout -= Time.deltaTime;
+        }
+
+        if (GameSceneManager.Instance != null)
+        {
+            Debug.Log("✅ GameSceneManager 준비 완료 → UI 갱신 실행");
+            GameSceneManager.Instance.SetRoomMeta(roomInfo.roomName, roomInfo.roomId);
+            GameSceneManager.Instance.UpdatePlayerUI(roomInfo.players);
+        }
+        else
+        {
+            Debug.LogWarning("❗ GameSceneManager 준비 실패 (null 또는 슬롯 누락)");
+        }
     }
 
     public async void CreateRoom()
@@ -502,9 +778,9 @@ public class MafiaClientUnified : MonoBehaviour
     {
         Debug.Log("📣 LeaveRoom() 호출됨");
 
+        // 🚫 방에 없는 상태면 서버에 leave_room 보내지 않음
         if (string.IsNullOrEmpty(playerId) || string.IsNullOrEmpty(roomId))
         {
-            Debug.LogError("❌ LeaveRoom 실패 - playerId 또는 roomId 없음");
             return;
         }
 
@@ -515,9 +791,9 @@ public class MafiaClientUnified : MonoBehaviour
 
         // ✅ 내부 상태 초기화
         roomId = "";
+        roomName = "";
         isOwner = false;
 
-        // ✅ UI 초기화 (필요할 경우)
         if (roomNameText != null) roomNameText.text = "";
         if (roomIdText != null) roomIdText.text = "";
         if (startGameButton != null) startGameButton.interactable = false;
@@ -586,7 +862,23 @@ public class MafiaClientUnified : MonoBehaviour
         }
     }
 
-    public void SendDayStart()
+    public void SendNightAction(string action, string target)
+    {
+        if (websocket != null && websocket.State == WebSocketState.Open)
+        {
+            var payload = new
+            {
+                type = "night_action",
+                action = action,
+                target = target
+            };
+
+            string json = JsonUtility.ToJson(payload);
+            websocket.SendText(json);
+            Debug.Log("🌙 밤 행동 전송됨: " + json);
+        }
+    }
+        public void SendDayStart()
     {
         if (websocket != null && websocket.State == WebSocketState.Open)
         {
@@ -604,17 +896,55 @@ public class MafiaClientUnified : MonoBehaviour
         }
     }
 
-    public void RequestRoomList()
+    public void SendVote(string target)
+    {
+        if (websocket != null && websocket.State == WebSocketState.Open)
         {
-            if (websocket != null && websocket.State == WebSocketState.Open)
-            {
-                var msg = new { type = "list_rooms" };
-                string json = JsonUtility.ToJson(msg);
-                websocket.SendText(json);
-                Debug.Log("📤 방 목록 요청 전송됨!");
-            }
+            var msg = new { type = "vote", target = target };
+            string json = JsonUtility.ToJson(msg);
+            websocket.SendText(json);
+            Debug.Log("🗳️ 투표 전송됨: " + json);
+        }
+    }
+
+    public void RequestRoomList()
+    {
+        if (websocket != null && websocket.State == WebSocketState.Open)
+        {
+            var msg = new { type = "list_rooms" };
+            string json = JsonUtility.ToJson(msg);
+            websocket.SendText(json);
+            Debug.Log("📤 방 목록 요청 전송됨!");
+        }
+    }
+
+    public void Logout()
+    {
+        Debug.Log("🔒 로그아웃 시도");
+
+        if (!string.IsNullOrEmpty(playerId) && !string.IsNullOrEmpty(roomId))
+        {
+            LeaveRoom();  // 서버에 leave_room 전송
         }
 
+        // 연결 종료 요청
+        if (websocket != null && websocket.State == WebSocketState.Open)
+        {
+            websocket.Close();  // 서버에서 연결 종료 로그 뜸
+        }
+
+        // 내부 상태 초기화
+        playerId = null;
+        playerName = null;
+        roomId = null;
+        roomName = null;
+        isOwner = false;
+        isReady = false;
+        currentPlayers = null;
+        readyStatusMap.Clear();
+
+        Debug.Log("🧹 내부 상태 초기화 완료 (Logout)");
+    }
     public bool IsConnected()
     {
         return websocket != null && websocket.State == WebSocketState.Open;

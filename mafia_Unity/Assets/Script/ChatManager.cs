@@ -13,20 +13,38 @@ public class ChatManager : MonoBehaviour
     public GameObject chatTextPrefab;
     public ScrollRect scrollRect;
     string nickname = Login.nickname;
+    public TMP_Text chatLog;
+
+    public static ChatManager Instance { get; private set; }
+
+    void Awake()
+    {
+        if (Instance == null) Instance = this;
+    }
+
+    void OnEnable()
+    {
+        InputField.onEndEdit.AddListener(HandleEndEdit);
+    }
+
+    void OnDisable()
+    {
+        InputField.onEndEdit.RemoveListener(HandleEndEdit);
+    }
 
     void Start()
     {
         ok.onClick.AddListener(SendChat);
-        InputField.onEndEdit.AddListener(HandleEndEdit);
     }
 
     void HandleEndEdit(string value)
     {
-        // Shift+Enter
         if (!Input.GetKey(KeyCode.LeftShift) && !Input.GetKey(KeyCode.RightShift))
         {
             SendChat();
-            StartCoroutine(RefocusInputField());
+
+            if (gameObject.activeInHierarchy)
+                StartCoroutine(RefocusInputField());
         }
     }
 
@@ -37,7 +55,7 @@ public class ChatManager : MonoBehaviour
 
         GameObject chatItem = Instantiate(chatTextPrefab, chatContent);
         chatItem.GetComponent<TextMeshProUGUI>().text = nickname + ": " + message;
-        
+
         if (MafiaClientUnified.Instance != null)
         {
             MafiaClientUnified.Instance.SendChat(message); // 🔄 변경됨
@@ -50,7 +68,7 @@ public class ChatManager : MonoBehaviour
         InputField.text = "";
         if (gameObject.activeInHierarchy)
         {
-        StartCoroutine(RefocusInputField());
+            StartCoroutine(RefocusInputField());
         }
 
         // Scroll to bottom
@@ -60,9 +78,20 @@ public class ChatManager : MonoBehaviour
 
     IEnumerator RefocusInputField()
     {
-        yield return null; 
-        InputField.ActivateInputField(); 
+        yield return null;
+        InputField.ActivateInputField();
     }
 
-    
+    public void AddSystemMessage(string msg, Color? colorOverride = null)
+    {
+        GameObject chatItem = Instantiate(chatTextPrefab, chatContent);
+        TextMeshProUGUI text = chatItem.GetComponent<TextMeshProUGUI>();
+
+        text.text = $"[SYSTEM] {msg}";
+        text.color = new Color(1f, 0.9f, 0.3f);  // 약간 노란색
+        text.fontStyle = FontStyles.Bold;
+
+        Canvas.ForceUpdateCanvases();
+        scrollRect.verticalNormalizedPosition = 0f;
+    }
 }

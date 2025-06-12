@@ -29,6 +29,9 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/Vote.unity
     guid: 89377000f9f0f7e47bd00419028c5c97
+  - enabled: 1
+    path: Assets/Scenes/Game_Room.unity
+    guid: e3480eefbf4699a41b1302b80f08ab5f
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 2bcd2660ca9b64942af0de543d8d7100, type: 3}
   m_UseUCBPForAssetBundles: 0
