@@ -49,8 +49,6 @@ public class GameSceneManager : MonoBehaviour
     /// </summary>
     public void UpdatePlayerUI(RoomPlayer[] players)
     {
-        Debug.Log("✅ UpdatePlayerUI 실행됨");
-
         if (players == null || playerSlots == null || playerSlots.Length == 0)
         {
             Debug.LogWarning("❗ players 또는 playerSlots가 null이거나 비어 있음");

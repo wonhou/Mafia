@@ -45,8 +45,6 @@ public class RoomSceneManager : MonoBehaviour
             timeout -= Time.deltaTime;
         }
 
-        Debug.Log("🎯 UpdatePlayerCards 호출 시작");
-
         // 조건 만족 못하더라도 호출은 시도함
         UpdatePlayerCards();
     }

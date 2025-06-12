@@ -15,7 +15,6 @@ public class RoomMaking : MonoBehaviour
         }
 
         Pass_Name.room_name = roomNameInput.text.Trim();
-        Debug.Log("✅ OK 버튼 클릭됨 - 저장된 방 이름: " + Pass_Name.room_name);
 
         // ✅ MafiaClientUnified를 통해 방 생성 요청
         if (MafiaClientUnified.Instance != null)
