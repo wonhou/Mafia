@@ -15,6 +15,10 @@ class MafiaGame {
     this.isAlive = true;
   }
 
+  isNight() {
+    return this.state === 'night';
+  }
+  
   terminate() {
     this.isAlive = false;
     this.players = [];
@@ -237,7 +241,7 @@ class MafiaGame {
   async sendChatPhase() {
     if (!this.isAlive) return;
     const aliveAIs = this.players.filter(p => p.isAI && p.alive);
-    const endTime = Date.now() + 120000;  // 낮 턴 제한 시간: 2분
+    const endTime = Date.now() + 20000;  // 낮 턴 제한 시간: 2분
 
     // 각 AI당 발언 횟수 2~3회로 제한
     const speakCountMap = {};

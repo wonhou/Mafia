@@ -166,6 +166,44 @@ wss.on('connection', (ws) => {
         return;
       }
 
+      if (msg.type === 'chat') {
+        const roomId = playerRoomMap.get(currentPlayerId);
+        const room = rooms[roomId];
+        if (!room || !room.game) return;
+
+        const senderId = msg.senderId || currentPlayerId;
+        const senderName = msg.senderName || playerNameMap.get(senderId) || "???";
+        const role = room.game.getRoleOf(senderId);
+        const isNight = room.game.isNight();
+
+        const chatMessage = {
+          type: 'chat',
+          sender: senderName,
+          senderId: senderId,
+          message: msg.text
+        };
+
+        console.log(`💬 [${senderName}] 채팅: ${msg.text}`);
+
+        if (isNight) {
+          if (role === 'mafia') {
+            // 밤에는 마피아끼리만 보냄
+            room.players.forEach(id => {
+              const r = room.game.getRoleOf(id);
+              if (r === 'mafia') {
+                sendTo(id, chatMessage);
+              }
+            });
+          } else {
+            return;
+          }
+        } else {
+          // 낮에는 전체에게 공개
+          broadcastToRoom(roomId, chatMessage);
+        }
+        return;
+      }
+
       if (msg.type === "create_room") {
         const roomId = "Room_" + Math.random().toString(36).substring(2, 5);
         const roomName = msg.roomName || "Untitled Room";
