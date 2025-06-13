@@ -12,7 +12,7 @@ public class ChatManager : MonoBehaviour
     public Transform chatContent;
     public GameObject chatTextPrefab;
     public ScrollRect scrollRect;
-    string nickname = Login.nickname;
+    string nickname;
     public TMP_Text chatLog;
 
     public static ChatManager Instance { get; private set; }
@@ -34,6 +34,8 @@ public class ChatManager : MonoBehaviour
 
     void Start()
     {
+        nickname = Login.nickname;
+        MafiaClientUnified.Instance?.SetChatInput(InputField);
         ok.onClick.AddListener(SendChat);
     }
 
@@ -53,25 +55,34 @@ public class ChatManager : MonoBehaviour
         string message = InputField.text.Trim();
         if (string.IsNullOrEmpty(message)) return;
 
-        GameObject chatItem = Instantiate(chatTextPrefab, chatContent);
-        chatItem.GetComponent<TextMeshProUGUI>().text = nickname + ": " + message;
+        // 🛡️ 밤에는 마피아만 채팅 가능
+        bool isNight = GameSceneManager.Instance != null && GameSceneManager.Instance.isNight;
+        string role = MafiaClientUnified.Instance?.currentRole ?? "";
 
+        if (isNight && role != "mafia")
+        {
+            Debug.LogWarning("🚫 밤에는 마피아만 채팅할 수 있습니다!");
+            return;
+        }
+
+        // 💬 채팅 전송
         if (MafiaClientUnified.Instance != null)
         {
-            MafiaClientUnified.Instance.SendChat(message); // 🔄 변경됨
+            MafiaClientUnified.Instance.SendChat(message);
         }
         else
         {
-            Debug.LogWarning("⚠️ MafiaClientUnified.Instance가 null입니다! 채팅 전송 실패"); // 🔄 추가
+            Debug.LogWarning("⚠️ MafiaClientUnified.Instance가 null입니다! 채팅 전송 실패");
         }
 
+        // 🧹 입력창 초기화 및 포커스 재설정
         InputField.text = "";
         if (gameObject.activeInHierarchy)
         {
-            StartCoroutine(RefocusInputField());
+            StartCoroutine(RefocusInputField());    
         }
 
-        // Scroll to bottom
+        // 📜 채팅창 아래로 스크롤
         Canvas.ForceUpdateCanvases();
         scrollRect.verticalNormalizedPosition = 0f;
     }
@@ -94,4 +105,16 @@ public class ChatManager : MonoBehaviour
         Canvas.ForceUpdateCanvases();
         scrollRect.verticalNormalizedPosition = 0f;
     }
+
+    public void AddChatMessage(string sender, string message)
+    {
+        GameObject chatItem = Instantiate(chatTextPrefab, chatContent);
+        TextMeshProUGUI text = chatItem.GetComponent<TextMeshProUGUI>();
+        text.text = $"{sender}: {message}";
+        text.color = Color.white;
+
+        Canvas.ForceUpdateCanvases();
+        scrollRect.verticalNormalizedPosition = 0f;
+    }
 }
+

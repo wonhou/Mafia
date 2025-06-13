@@ -160,6 +160,21 @@ public class ListRoomsMessage
     public string type = "list_rooms";
 }
 
+public class ChatMessage
+{
+    public string type = "chat";
+    public string text;
+    public string senderId;
+    public string senderName;
+
+    public ChatMessage(string text, string senderId, string senderName)
+    {
+        this.text = text;
+        this.senderId = senderId;
+        this.senderName = senderName;
+    }
+}
+
 [System.Serializable]
 public class NightResultMessage
 {
@@ -202,6 +217,7 @@ public class MafiaClientUnified : MonoBehaviour
 
     private WebSocket websocket;
     private WebSocketState lastState = WebSocketState.Closed;
+    private string currentPlayerId;
     private bool isRegistered = false;
     private bool roomCreated = false;
     private bool isReady = false;
@@ -397,12 +413,17 @@ public class MafiaClientUnified : MonoBehaviour
 
                     case "night_start":
                         ChatManager.Instance?.AddSystemMessage("밤이 되었습니다. 마피아, 의사, 경찰은 행동을 선택하세요.");
+                        GameSceneManager.Instance?.UpdateTurnPhase(true);
+                        TargetSelectUIManager.Instance?.EnableNightTargetButtons(currentRole, currentPlayerId, currentPlayers);
                         break;
                     case "day_start":
                         ChatManager.Instance?.AddSystemMessage("낮이 되었습니다. 자유롭게 토론을 시작하세요.");
+                        GameSceneManager.Instance?.UpdateTurnPhase(false);
+                        TargetSelectUIManager.Instance?.DisableAllTargetButtons();
                         break;
                     case "vote_start":
                         ChatManager.Instance?.AddSystemMessage("투표가 시작되었습니다. 처형할 사람을 선택하세요.");
+                        TargetSelectUIManager.Instance?.EnableVoteButtons(currentPlayers);
                         break;
 
                     default:
@@ -472,13 +493,14 @@ public class MafiaClientUnified : MonoBehaviour
 
                 Debug.Log($"💬 {msg.sender}: {msg.message}");
 
-                if (chatLog != null)
+                // 💬 새 방식으로 채팅 출력
+                if (ChatManager.Instance != null)
                 {
-                    chatLog.text += $"{msg.sender}: {msg.message}\n";
+                    ChatManager.Instance.AddChatMessage(msg.sender, msg.message);
                 }
                 else
                 {
-                    Debug.LogWarning("⚠️ chatLog가 null입니다 (UI 미연결)");
+                    Debug.LogWarning("⚠️ ChatManager.Instance가 null입니다 (채팅 UI 미연결)");
                 }
                 break;
 
@@ -601,15 +623,22 @@ public class MafiaClientUnified : MonoBehaviour
 
     private void HandleNightResult(NightResultMessage result)
     {
-        if (!string.IsNullOrEmpty(result.saved))
+        if (!string.IsNullOrEmpty(result.killed))
         {
-            ChatManager.Instance?.AddSystemMessage("의사에 의해 한 명이 살아났습니다.", Color.cyan);
+            // 죽이려 한 대상과 의사가 살린 대상이 같을 경우 → 살림
+            if (result.killed == result.saved)
+            {
+                var savedPlayer = currentPlayers.FirstOrDefault(p => p.id == result.saved);
+                string savedName = savedPlayer != null ? savedPlayer.name : result.saved;
+                ChatManager.Instance?.AddSystemMessage($"의사에 의해 {savedName}님이 살아났습니다.", Color.cyan);
+            }
         }
         else
         {
             ChatManager.Instance?.AddSystemMessage("이번 밤에는 아무도 죽지 않았습니다.");
         }
 
+        // 경찰 조사 결과
         if (currentRole == "police" && !string.IsNullOrEmpty(result.investigated))
         {
             var target = currentPlayers.FirstOrDefault(p => p.id == result.investigated);
@@ -838,7 +867,7 @@ public class MafiaClientUnified : MonoBehaviour
 
     public void RequestPlayerList()
     {
-        var msg = new ListPlayersMessage();  // ✅ 클래스로 생성
+        var msg = new ListPlayersMessage();
         string json = JsonUtility.ToJson(msg);
         websocket.SendText(json);
         Debug.Log("📤 플레이어 목록 요청 전송됨: " + json);
@@ -846,11 +875,23 @@ public class MafiaClientUnified : MonoBehaviour
 
     public void SendChat(string msg)
     {
-        var payload = new { type = "chat", text = msg };
+        if (websocket == null)
+        {
+            Debug.LogError("❌ WebSocket이 null입니다. 서버에 연결되지 않았습니다.");
+            return;
+        }
+
+        var payload = new ChatMessage(msg, playerId, playerName);
         string json = JsonUtility.ToJson(payload);
         websocket.SendText(json);
-        chatInput.text = "";
     }
+
+    public void SetChatInput(TMP_InputField input)
+    {
+        this.chatInput = input;
+        Debug.Log("✅ chatInput 외부에서 성공적으로 설정됨!");
+    }
+
 
     public void OnClickStartGame()
     {

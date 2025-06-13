@@ -12,6 +12,8 @@ public class GameSceneManager : MonoBehaviour
     public TextMeshProUGUI roomNameText;  // 방 이름 표시
     public TextMeshProUGUI roomIdText;    // 방 코드 표시
     public GameObject[] playerSlots;      // Player1 ~ Player8 오브젝트들
+    public int currentTurn = 1;
+    public bool isNight = false;
 
     void Awake()
     {
@@ -29,11 +31,28 @@ public class GameSceneManager : MonoBehaviour
     /// </summary>
     public void SetTurn(int day, string phase)
     {
+        currentTurn = day;
+        isNight = (phase == "밤");
+
         if (turnText != null)
         {
             turnText.text = $"{day}번째 {phase}";
         }
     }
+
+    public void UpdateTurnPhase(bool isNightTurn)
+    {
+        isNight = isNightTurn;
+
+        if (isNight)
+            currentTurn++;
+
+        if (turnText != null)
+        {
+            string phase = isNight ? "밤" : "낮";
+            turnText.text = $"{currentTurn}번째 {phase}";
+        }
+}
 
     /// <summary>
     /// 방 제목과 방 코드 텍스트 표시
