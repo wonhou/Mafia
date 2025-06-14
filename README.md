@@ -12,7 +12,7 @@ openai.ChatCompletion.create(
     ]
 )
 ```
-system:	모델의 역할/성향/스타일 정의 (지침 역할)
+system:	모델의 역할/성향/스타일 정의 (지침 역할) \n
  system prompt는 맨 앞
 user:	실제 유저 질문
 assistant:	모델의 이전 응답 (대화 맥락 유지에 필요)
