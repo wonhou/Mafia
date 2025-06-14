@@ -385,6 +385,25 @@ wss.on('connection', (ws) => {
 
         game.assignRoles();
 
+        for (const aiId of availableAIs) {
+          const aiRole = game.getRoleOf(aiId);
+
+          const payload = {
+            playerId: aiId,
+            role: aiRole,
+            allPlayers,
+            settings: {}
+          };
+
+          try {
+            await axios.post("http://localhost:4000/init", payload);
+            console.log(`✅ AI 초기화 완료: ${aiId} (${aiRole})`);
+          } catch (err) {
+            console.error(`❌ AI 초기화 실패: ${aiId}`, err.message);
+          }
+        }
+
+
         // ✅ 1. 역할 기반 playerList 구성 → room_info 먼저 보냄
         const playerList = room.players.map((id, index) => {
           const gamePlayer = game.players.find(p => p.id === id);

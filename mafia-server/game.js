@@ -252,6 +252,11 @@ class MafiaGame {
 
   async startDay() {
     if (!this.isAlive) return;
+
+    this.chatHistory = this.chatHistory.filter(msg =>
+      !(msg.sender === 'system' && msg.message.includes('밤'))
+    );
+
     this.state = 'day';
     console.log(`🌞 낮 ${this.day} 시작`);
     this.votes = {};
@@ -274,7 +279,7 @@ class MafiaGame {
   async sendChatPhase() {
     if (!this.isAlive) return;
     const aliveAIs = this.players.filter(p => p.isAI && p.alive);
-    const endTime = Date.now() + 5000;  // 낮 턴 제한 시간: 2분
+    const endTime = Date.now() + 20000;  // 낮 턴 제한 시간: 2분
 
     // 각 AI당 발언 횟수 2~3회로 제한
     const speakCountMap = {};
