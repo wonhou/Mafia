@@ -13,7 +13,7 @@ Zero-shot: 모델에게 아무런 예제도 주지 않고 문제를 해결하도
   특징:
     1. 실시간 응답 속도가 빠름
     2. 문제가 단순하거나 명확 또는 모델이 충분히 훈련되어있다면 이 방법만으로 해결 가능
-```
+    
 Few-shot: 여러 개의 예제를 보여준 후 문제 해결
   특징:
     1. 패턴이 있을 경우, 인공지능의 이해를 가속화함
@@ -149,8 +149,10 @@ Reflexion: 모델이 스스로의 실패를 인식하고, 피드백을 반영해
     feedback = llm(f"이 답변의 문제점은 무엇인가?\n답변: {response_1}")
     response_2 = llm(f"이 피드백을 참고해 다시 시도해줘.\n{feedback}")
     ```
+```
 
 -------------  사용자 프롬프트  -------------
+```
 Adversarial Prompting in LLMs(적대적 프롬프팅)
 ex)
 ![image](https://github.com/user-attachments/assets/1837d7a3-89de-45b0-bf8a-07da3cd2ec38)
@@ -158,3 +160,4 @@ ex)
 Factuality(사실성): 허구
 
 Biases(편향)
+```
