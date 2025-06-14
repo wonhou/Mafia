@@ -4,7 +4,7 @@ https://bob-data.tistory.com/41
 https://bob-data.tistory.com/45?category=1150698
 참고하고 지우기
 
--------------  인공지능 프롬프트에 관한 고찰  -------------
+-------------  시스템 프롬프트  -------------
 
 참고 자료
 https://www.promptingguide.ai/kr
@@ -151,4 +151,11 @@ Reflexion: 모델이 스스로의 실패를 인식하고, 피드백을 반영해
     response_2 = llm(f"이 피드백을 참고해 다시 시도해줘.\n{feedback}")
     ```
 
+-------------  사용자 프롬프트  -------------
+Adversarial Prompting in LLMs(적대적 프롬프팅)
+ex)
+![image](https://github.com/user-attachments/assets/1837d7a3-89de-45b0-bf8a-07da3cd2ec38)
 
+Factuality(사실성): 허구
+
+Biases(편향)
