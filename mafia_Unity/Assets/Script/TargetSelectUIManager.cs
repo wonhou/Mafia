@@ -8,9 +8,11 @@ public class TargetSelectUIManager : MonoBehaviour
 {
     public static TargetSelectUIManager Instance { get; private set; }
 
-    public Transform playerListParent;     // Player1~8이 들어있는 부모 오브젝트
+    public Transform playerListParent;
 
     private Dictionary<Button, string> buttonToPlayerId = new();
+    private Dictionary<string, Button> playerIdToButton = new();
+    private Dictionary<Button, Image> buttonToImage = new();
     private string selectedTargetId = null;
 
     void Awake()
@@ -20,12 +22,14 @@ public class TargetSelectUIManager : MonoBehaviour
         else
             Destroy(gameObject);
     }
+
     public void Show(List<string> playerIds, string role = null)
     {
         gameObject.SetActive(true);
-        selectedTargetId = null;
         buttonToPlayerId.Clear();
-        Debug.Log("📣 TargetSelectUIManager.Show() 호출됨");
+        playerIdToButton.Clear();
+        buttonToImage.Clear();
+        selectedTargetId = null;
 
         for (int i = 0; i < 8; i++)
         {
@@ -38,116 +42,122 @@ public class TargetSelectUIManager : MonoBehaviour
             Button btn = nameButtonObj.GetComponent<Button>();
             if (btn == null) continue;
 
+            Image img = btn.GetComponent<Image>();
+            if (img == null) continue;
+
+            // 스프라이트가 없다면 기본 스프라이트 생성
+            if (img.sprite == null)
+            {
+                Texture2D tex = new Texture2D(1, 1);
+                tex.SetPixel(0, 0, Color.white);
+                tex.Apply();
+                img.sprite = Sprite.Create(tex, new Rect(0, 0, 1, 1), Vector2.one * 0.5f);
+            }
+
+            btn.transition = Selectable.Transition.None;
+            btn.targetGraphic = img;
+            img.color = new Color(1f, 1f, 1f, 0f);
+
+            buttonToImage[btn] = img;
+            btn.onClick.RemoveAllListeners();
+
             if (i < playerIds.Count)
             {
                 string pid = playerIds[i];
-
-                // ✅ 밤일 경우, 시민이면 비활성화
-                bool isNight = (role != null);
-                bool isCitizen = role == "citizen";
-                btn.interactable = !isNight || !isCitizen;
-
-                btn.onClick.RemoveAllListeners();
-                btn.onClick.AddListener(() => OnPlayerSelected(pid, btn));
-
                 buttonToPlayerId[btn] = pid;
-                btn.image.color = new Color(1f, 1f, 1f, 0f);
+                playerIdToButton[pid] = btn;
+
+                TMP_Text nameText = nameButtonObj.GetComponentInChildren<TMP_Text>();
+                var playerData = MafiaClientUnified.Instance.currentPlayers.FirstOrDefault(p => p.id == pid);
+                if (nameText != null)
+                    nameText.text = playerData?.name ?? pid;
+
+                if (playerData == null || !playerData.isAlive)
+                {
+                    img.color = Color.gray;
+                    btn.interactable = false;
+                    continue;
+                }
+
+                bool allow = ShouldEnableButton(role, pid);
+                btn.interactable = allow;
+
+                if (allow)
+                {
+                    btn.onClick.AddListener(() => OnPlayerSelected(pid));
+                }
             }
             else
             {
                 btn.interactable = false;
-                btn.image.color = Color.gray;
+                img.color = Color.gray;
             }
         }
     }
 
-    void OnPlayerSelected(string playerId, Button clicked)
+    void OnPlayerSelected(string playerId)
     {
-        if (selectedTargetId == playerId)
+        if (selectedTargetId != null && playerIdToButton.TryGetValue(selectedTargetId, out var prevBtn))
         {
-            selectedTargetId = null;
-            clicked.image.color = new Color(1f, 1f, 1f, 0f);  // 투명 복원
-            return;
+            if (buttonToImage.TryGetValue(prevBtn, out var prevImg))
+            {
+                prevImg.color = new Color(1f, 1f, 1f, 0f);
+            }
         }
 
         selectedTargetId = playerId;
 
-        foreach (var pair in buttonToPlayerId)
+        if (playerIdToButton.TryGetValue(playerId, out var btn) &&
+            buttonToImage.TryGetValue(btn, out var img))
         {
-            Button btn = pair.Key;
-            // 죽은 사람 제외하고 모두 투명 처리
-            if (btn.interactable)
-                btn.image.color = new Color(1f, 1f, 1f, 0f);
+            img.color = Color.red;
         }
-
-        clicked.image.color = Color.red;  // 선택된 대상만 빨간색
     }
 
-    // 모든 버튼 비활성화
+    public void RefreshSelectedState()
+    {
+        foreach (var pair in playerIdToButton)
+        {
+            if (!buttonToImage.TryGetValue(pair.Value, out var img)) continue;
+
+            img.color = (pair.Key == selectedTargetId) ? Color.red : new Color(1f, 1f, 1f, 0f);
+        }
+    }
+
     public void DisableAllTargetButtons()
     {
         foreach (Transform child in playerListParent)
         {
-            var button = child.GetComponent<Button>();
+            var button = child.GetComponentInChildren<Button>();
             if (button != null) button.interactable = false;
         }
     }
-    public void EnableVoteButtons(RoomPlayer[] players)
+
+    private bool ShouldEnableButton(string role, string pid)
     {
-        foreach (Transform child in playerListParent)
-        {
-            var button = child.GetComponent<Button>();
-            var targetId = child.name;
+        var playerData = MafiaClientUnified.Instance.currentPlayers.FirstOrDefault(p => p.id == pid);
+        if (playerData == null || !playerData.isAlive)
+            return false;
 
-            // 상대가 살아 있어야만 투표 가능
-            bool isAlive = players.FirstOrDefault(p => p.id == targetId)?.isAlive ?? false;
-            if (button != null)
-                button.interactable = isAlive;
-        }
-    }
+        bool isVoteTime = (role == "vote");
+        bool isDoctor = (role == "doctor");
+        bool isPolice = (role == "police");
+        bool isMafia = (role == "mafia");
+        bool isSelf = (pid == MafiaClientUnified.Instance.playerId);
 
-    public void EnableNightTargetButtons(string role, string myId, RoomPlayer[] players)
-    {
-        foreach (Transform child in playerListParent)
-        {
-            var button = child.GetComponent<Button>();
-            var targetId = child.name;
+        bool isNight = isMafia || isDoctor || isPolice;
 
-            // 자기 자신 선택 허용 여부 (의사만 허용)
-            bool isSelf = (targetId == myId);
-            bool canSelectSelf = (role == "doctor");
+        if (isVoteTime)
+            return true;
 
-            if (isSelf && !canSelectSelf)
-            {
-                if (button != null) button.interactable = false;
-                continue;
-            }
+        if (isNight)
+            return (!isSelf || isDoctor);
 
-            // 상대가 살아 있어야 함
-            bool isAlive = players.FirstOrDefault(p => p.id == targetId)?.isAlive ?? false;
-            if (!isAlive)
-            {
-                if (button != null) button.interactable = false;
-                continue;
-            }
-
-            // 역할별 타겟팅 가능 여부 (현재는 모두 true)
-            bool canTarget = role switch
-            {
-                "mafia" => true,
-                "police" => true,
-                "doctor" => true,
-                _ => false
-            };
-
-            if (button != null)
-                button.interactable = canTarget;
-        }
+        return false;
     }
 
     public string GetSelectedTarget()
     {
         return selectedTargetId;
     }
-
 }

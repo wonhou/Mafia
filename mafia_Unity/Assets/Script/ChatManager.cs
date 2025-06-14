@@ -17,6 +17,8 @@ public class ChatManager : MonoBehaviour
 
     public static ChatManager Instance { get; private set; }
 
+    bool sendChatPending = false;
+
     void Awake()
     {
         if (Instance == null) Instance = this;
@@ -36,14 +38,27 @@ public class ChatManager : MonoBehaviour
     {
         nickname = Login.nickname;
         MafiaClientUnified.Instance?.SetChatInput(InputField);
-        ok.onClick.AddListener(SendChat);
+
+        // ✅ 엔터로 입력
+        InputField.onEndEdit.AddListener(HandleEndEdit);
+
+        // ✅ OK 버튼 클릭 시
+        ok.onClick.AddListener(() =>
+        {
+            sendChatPending = true;
+            InputField.DeactivateInputField();  // 이걸 호출하면 OnEndEdit이 먼저 실행됨
+        });
     }
 
     void HandleEndEdit(string value)
     {
-        if (!Input.GetKey(KeyCode.LeftShift) && !Input.GetKey(KeyCode.RightShift))
+        if (string.IsNullOrWhiteSpace(value)) return;
+
+        // 👉 중복 방지: 엔터 or 버튼 중 하나만 허용
+        if (sendChatPending || (!Input.GetKey(KeyCode.LeftShift) && !Input.GetKey(KeyCode.RightShift)))
         {
             SendChat();
+            sendChatPending = false;
 
             if (gameObject.activeInHierarchy)
                 StartCoroutine(RefocusInputField());

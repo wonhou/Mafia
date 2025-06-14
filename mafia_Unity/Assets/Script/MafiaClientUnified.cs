@@ -174,6 +174,23 @@ public class ChatMessage
         this.senderName = senderName;
     }
 }
+[System.Serializable]
+public class VoteMessage
+{
+    public string type = "vote";
+    public string target;
+
+    public VoteMessage(string target)
+    {
+        this.target = target;
+    }
+}
+[System.Serializable]
+public class VoteResultMessage
+{
+    public string type;
+    public string executed;
+}
 
 [System.Serializable]
 public class NightResultMessage
@@ -284,6 +301,8 @@ public class MafiaClientUnified : MonoBehaviour
                     case "chat":
                     case "your_role":
                     case "night_end":
+                    case "night_start":
+                    case "day_start":
                     case "game_over":
                         HandleStandardMessage(JsonUtility.FromJson<ServerMessage>(message));
                         break;
@@ -411,20 +430,44 @@ public class MafiaClientUnified : MonoBehaviour
                         }
                         break;
 
-                    case "night_start":
-                        ChatManager.Instance?.AddSystemMessage("밤이 되었습니다. 마피아, 의사, 경찰은 행동을 선택하세요.");
-                        GameSceneManager.Instance?.UpdateTurnPhase(true);
-                        TargetSelectUIManager.Instance?.EnableNightTargetButtons(currentRole, currentPlayerId, currentPlayers);
-                        break;
-                    case "day_start":
-                        ChatManager.Instance?.AddSystemMessage("낮이 되었습니다. 자유롭게 토론을 시작하세요.");
-                        GameSceneManager.Instance?.UpdateTurnPhase(false);
-                        TargetSelectUIManager.Instance?.DisableAllTargetButtons();
-                        break;
                     case "vote_start":
                         ChatManager.Instance?.AddSystemMessage("투표가 시작되었습니다. 처형할 사람을 선택하세요.");
-                        TargetSelectUIManager.Instance?.EnableVoteButtons(currentPlayers);
+
+                        TargetSelectUIManager.Instance?.Show(
+                            currentPlayers.Where(p => p.isAlive).Select(p => p.id).ToList(), 
+                            "vote"); // 낮이므로 role = null
+
                         break;
+
+                    case "vote_end":
+                        string voteTarget = TargetSelectUIManager.Instance.GetSelectedTarget();
+                        if (!string.IsNullOrEmpty(voteTarget))
+                        {
+                            MafiaClientUnified.Instance.SendVote(voteTarget);
+                            Debug.Log($"📤 투표 전송됨: {voteTarget}");
+                        }
+                        else
+                        {
+                            Debug.LogWarning("❗ 선택된 대상이 없어 투표하지 않음");
+                        }
+                        break;
+                    case "vote_result":
+                        var voteResult = JsonUtility.FromJson<VoteResultMessage>(message);
+                        string votedId = voteResult.executed;
+
+                        if (!string.IsNullOrEmpty(votedId))
+                        {
+                            var votedPlayer = currentPlayers.FirstOrDefault(p => p.id == votedId);
+                            if (votedPlayer != null) votedPlayer.isAlive = false;
+                        }
+                        else
+                        {
+                            ChatManager.Instance?.AddSystemMessage("투표 결과 동률입니다. 아무도 처형되지 않았습니다.");
+                        }
+
+                        RefreshPlayerUI();
+                        break;
+
 
                     default:
                         Debug.Log("📦 처리되지 않은 메시지: " + message);
@@ -517,36 +560,48 @@ public class MafiaClientUnified : MonoBehaviour
 
                 Debug.Log($"🎭 역할: {roleKor}");
 
-                // ✅ 시스템 메시지 출력
-                if (ChatManager.Instance != null)
-                {
-                    ChatManager.Instance.AddSystemMessage($"당신의 직업은 <b>{roleKor}</b> 입니다");
-                    ChatManager.Instance.AddSystemMessage("밤이 시작되었습니다. 각자의 역할에 맞는 행동을 선택해주세요.");
-                }
-                else
-                {
-                    Debug.LogWarning("⚠️ ChatManager.Instance가 null입니다!");
-                }
-
                 if (GameSceneManager.Instance != null)
                 {
+                    ChatManager.Instance?.AddSystemMessage($"당신의 직업은 {roleKor}입니다.");
                     GameSceneManager.Instance.SetRoomMeta(roomName, roomId);
-                    GameSceneManager.Instance.SetTurn(1, "밤");
+                    GameSceneManager.Instance.SetTurn(0, "밤");
                 }
                 else
                 {
                     Debug.LogWarning("❗ GameSceneManager.Instance가 null입니다");
                 }
-
-                StartCoroutine(WaitAndShowTargetSelectUI(currentRole));
                 break;
 
             case "night_start":
-                ChatManager.Instance?.AddSystemMessage(msg.message);
-                break;
+                {
+                    if (!string.IsNullOrEmpty(msg.message))
+                    {
+                        ChatManager.Instance?.AddSystemMessage(msg.message);
+                    }
+                    else
+                    {
+                        ChatManager.Instance?.AddSystemMessage("밤이 되었습니다. 마피아, 의사, 경찰은 행동을 선택하세요.");
+                    }
+
+                    GameSceneManager.Instance?.UpdateTurnPhase(true);  // currentTurn 증가 포함
+                    StartCoroutine(WaitUntilTargetSelectUIReady(currentRole));
+
+                    break;
+                }
 
             case "day_start":
-                ChatManager.Instance?.AddSystemMessage(msg.message);
+                if (!string.IsNullOrEmpty(msg.message))
+                {
+                    ChatManager.Instance?.AddSystemMessage(msg.message);
+                }
+                else
+                {
+                    ChatManager.Instance?.AddSystemMessage("낮이 되었습니다. 자유롭게 토론을 시작하세요.");
+                }
+
+                GameSceneManager.Instance?.UpdateTurnPhase(false);
+                TargetSelectUIManager.Instance?.DisableAllTargetButtons();
+                RefreshPlayerUI();
                 break;
 
             case "night_end":
@@ -570,28 +625,10 @@ public class MafiaClientUnified : MonoBehaviour
                 }
                 break;
 
-            case "vote_result":
-                string votedId = msg.message;
-
-                if (!string.IsNullOrEmpty(votedId))
-                {
-                    var votedPlayer = currentPlayers.FirstOrDefault(p => p.id == votedId);
-                    string votedName = votedPlayer != null ? votedPlayer.name : votedId;
-
-                    ChatManager.Instance?.AddSystemMessage($"{votedName}님이 투표로 처형당했습니다.", Color.red);
-                    if (votedPlayer != null) votedPlayer.isAlive = false;
-                }
-                else
-                {
-                    ChatManager.Instance?.AddSystemMessage("투표 결과 동률입니다. 아무도 처형되지 않았습니다.");
-                }
-
-                RefreshPlayerUI();
-                break;
-
             case "game_over":
                 chatLog.text += $"게임 종료! 승자: {msg.message}\n";
                 break;
+                
         }
     }
 
@@ -616,9 +653,10 @@ public class MafiaClientUnified : MonoBehaviour
                 return p != null ? p.name : id;
             }));
 
-            ChatManager.Instance?.AddSystemMessage($"{deadNames}님이 밤에 사망했습니다.", Color.red);
-        }
+            string context = eliminated.reason == "vote" ? "투표로 처형되었습니다" : "밤에 사망했습니다";
 
+            ChatManager.Instance?.AddSystemMessage($"{deadNames}님이 {context}.", Color.red);
+        }
     }
 
     private void HandleNightResult(NightResultMessage result)
@@ -644,6 +682,14 @@ public class MafiaClientUnified : MonoBehaviour
             var target = currentPlayers.FirstOrDefault(p => p.id == result.investigated);
             if (target != null)
             {
+                // 🔍 role이 null이면 서버로부터 새로 갱신한 정보를 사용
+                if (string.IsNullOrEmpty(target.role))
+                {
+                    Debug.LogWarning($"🔎 조사 대상의 role이 비어있음. 서버로부터 role이 누락된 것일 수 있음: {target.id}");
+                }
+
+                Debug.Log($"🔍 조사 대상: {target.name}, 역할: {target.role}");
+
                 string alignment = target.role == "mafia" ? "마피아" : "시민";
                 ChatManager.Instance?.AddSystemMessage($"{target.name}님은 {alignment}입니다.", Color.yellow);
             }
@@ -652,6 +698,39 @@ public class MafiaClientUnified : MonoBehaviour
         RefreshPlayerUI();
     }
 
+    private IEnumerator WaitUntilTargetSelectUIReady(string role)
+    {
+        float timeout = 3f;
+
+        // UI 매니저, currentPlayers 초기화 기다리기
+        while ((TargetSelectUIManager.Instance == null || currentPlayers == null || currentPlayers.Length == 0) && timeout > 0f)
+        {
+            yield return null;
+            timeout -= Time.deltaTime;
+        }
+
+        if (TargetSelectUIManager.Instance == null || currentPlayers == null || currentPlayers.Length == 0)
+        {
+            Debug.LogWarning("❗ 타겟 선택 UI 초기화 실패 또는 플레이어 정보 없음");
+            yield break;
+        }
+
+        List<string> aliveIds = currentPlayers
+            .Where(p => p.isAlive)
+            .Select(p => p.id)
+            .ToList();
+
+        TargetSelectUIManager.Instance.Show(aliveIds, role);
+    }
+
+    public List<string> GetSortedAlivePlayerIds()
+    {
+        return currentPlayers
+            .Where(p => p.isAlive)
+            .OrderBy(p => p.slot)
+            .Select(p => p.id)
+            .ToList();
+    }
     private RoomPlayer GetPlayerById(string id)
     {
         return currentPlayers?.FirstOrDefault(p => p.id == id);
@@ -970,7 +1049,7 @@ public class MafiaClientUnified : MonoBehaviour
     {
         if (websocket != null && websocket.State == WebSocketState.Open)
         {
-            var msg = new { type = "vote", target = target };
+            var msg = new VoteMessage(target);
             string json = JsonUtility.ToJson(msg);
             websocket.SendText(json);
             Debug.Log("🗳️ 투표 전송됨: " + json);

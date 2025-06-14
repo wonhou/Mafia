@@ -52,7 +52,7 @@ public class GameSceneManager : MonoBehaviour
             string phase = isNight ? "밤" : "낮";
             turnText.text = $"{currentTurn}번째 {phase}";
         }
-}
+    }
 
     /// <summary>
     /// 방 제목과 방 코드 텍스트 표시
@@ -62,6 +62,7 @@ public class GameSceneManager : MonoBehaviour
         if (roomNameText != null) roomNameText.text = name;
         if (roomIdText != null) roomIdText.text = id;
     }
+
 
     /// <summary>
     /// 플레이어 슬롯에 이름 표시 및 사망자 회색 처리
@@ -74,58 +75,65 @@ public class GameSceneManager : MonoBehaviour
             return;
         }
 
+        // 1. 슬롯 전부 초기화
         for (int i = 0; i < playerSlots.Length; i++)
         {
             GameObject slot = playerSlots[i];
-            if (slot == null)
-            {
-                Debug.LogWarning($"❗ 슬롯 {i}가 null입니다.");
-                continue;
-            }
+            if (slot == null) continue;
 
-            if (i >= players.Length)
-            {
-                slot.SetActive(false); // 빈 슬롯은 비활성화
-                continue;
-            }
+            slot.SetActive(false);
 
-            RoomPlayer p = players[i];
-
-            // 슬롯 활성화
-            slot.SetActive(true);
-
-            // ✅ 이름 표시 시도: NameButton/Name 경로 탐색
+            // 이름 텍스트 제거
             var nameObj = slot.transform.Find("NameButton/Name");
-            if (nameObj == null)
-            {
-                Debug.LogWarning($"❗ 슬롯 {i}: 'NameButton/Name' 경로를 찾을 수 없습니다");
-            }
-            else
+            if (nameObj != null)
             {
                 var nameText = nameObj.GetComponent<TextMeshProUGUI>();
-                if (nameText == null)
+                if (nameText != null)
                 {
-                    Debug.LogWarning($"❗ 슬롯 {i}: TextMeshProUGUI 컴포넌트가 없습니다");
-                }
-                else
-                {
-                    nameText.text = p.name;
-                    nameText.color = Color.white;        // 혹시 알파가 0일 경우 대비
-                    nameText.gameObject.SetActive(true);
+                    nameText.text = "";                    // 텍스트 비우기
+                    nameText.gameObject.SetActive(false); // UI 자체 숨기기
                 }
             }
 
-            // ✅ 회색 처리: PlayerX/NameButton (Image)
+            // 배경 색상 초기화
             var nameButton = slot.transform.Find("NameButton");
             if (nameButton != null)
             {
                 var bg = nameButton.GetComponent<Image>();
                 if (bg != null)
                 {
-                        bg.color = p.isAlive
-                            ? new Color(1f, 1f, 1f, 0f)  // 살아 있으면 투명
-                            : Color.gray;               // 죽으면 회색
+                    bg.color = new Color(1f, 1f, 1f, 0f); // 완전 투명화
                 }
+            }
+        }
+        // 살아있는 사람 -> 죽은 사람 순으로 정렬
+        var sorted = players
+            .OrderByDescending(p => p.isAlive)    // true > false
+            .ThenBy(p => p.slot)         // 같은 상태면 slot 순서
+            .ToList();
+
+
+        // 2. 플레이어 정보 반영
+        for (int i = 0; i < sorted.Count && i < playerSlots.Length; i++)
+        {
+            var p = sorted[i];
+            GameObject slot = playerSlots[i];
+            if (slot == null) continue;
+
+            slot.SetActive(true);
+
+            var nameText = slot.transform.Find("NameButton/Name")?.GetComponent<TextMeshProUGUI>();
+            if (nameText != null)
+            {
+                nameText.text = p.name;
+                nameText.color = Color.white;
+                nameText.gameObject.SetActive(true);
+            }
+
+            var bg = slot.transform.Find("NameButton")?.GetComponent<Image>();
+            if (bg != null)
+            {
+                bg.color = p.isAlive ? new Color(1f, 1f, 1f, 0f) : Color.gray;
             }
         }
     }
