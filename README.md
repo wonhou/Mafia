@@ -1,4 +1,4 @@
-![image](https://github.com/user-attachments/assets/d65b9ed8-41e9-451e-a0b3-3837dc4be065)성능 개선 (LoRA)
+성능 개선 (LoRA)
 
 https://bob-data.tistory.com/41
 https://bob-data.tistory.com/45?category=1150698
@@ -49,7 +49,6 @@ Prompt Chaining: 여러 개의 프롬프트를 단계적으로 연결해서, 하
 Tree of Thoughts (ToT): 여러 개의 사고 경로(thoughts)를 생성하고, 이를 트리 구조로 확장하며 평가/선택해나가는 방식
   ToT 프레임워크:
   ![image](https://github.com/user-attachments/assets/dc275287-9829-4311-9125-4e5e671de12b)
-
   과정:
   ![image](https://github.com/user-attachments/assets/1a89e0c6-54c5-408c-8b94-621225cc205d)
 
