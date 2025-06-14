@@ -185,6 +185,11 @@ wss.on('connection', (ws) => {
 
         console.log(`💬 [${senderName}] 채팅: ${msg.text}`);
 
+        room.game.chatHistory.push({
+          sender: senderName,
+          message: msg.text
+        });
+
         if (isNight) {
           if (role === 'mafia') {
             // 밤에는 마피아끼리만 보냄
@@ -323,19 +328,35 @@ wss.on('connection', (ws) => {
         const room = rooms[currentRoom];
         if (!room) return;
 
-        room.readyPlayers = room.readyPlayers || {};
-        const ownerId = room.players[0];
-        const nonOwnerPlayers = room.players.filter(id => id !== room.owner && !id.startsWith('ai_'));
-        const allReady = nonOwnerPlayers.every(id => room.readyPlayers[id] === true);
+        // 이전 게임 제거
+        if (room.game && typeof room.game.terminate === 'function') {
+          room.game.terminate();
+          room.game = null;
+          console.log("🛑 MafiaGame 인스턴스가 종료되었습니다");
+        }
+
+        // 이전에 들어간 AI 제거
+        room.players = room.players.filter(id => !id.startsWith('ai_'));
+
+        // ✅ Ready 체크
+        room.readyPlayers = {};
+        
+        const ownerId = room.players[0]; // 방장
+        room.readyPlayers[ownerId] = true; // 방장은 항상 Ready
+
+        const allReady = room.players.every(id => {
+          if (id === ownerId) return true;
+          return room.readyPlayers[id];
+        });
 
         if (!allReady) {
           console.log("⛔ Ready하지 않은 유저가 있어서 게임 시작 불가");
           return;
         }
 
+        // ✅ AI 채우기
         const currentPlayerIds = room.players;
         const playerCount = currentPlayerIds.length;
-
         const neededAIs = Math.max(0, 8 - playerCount);
         const aiCandidates = ['ai_1','ai_2','ai_3','ai_4','ai_5','ai_6','ai_7'];
         const usedIds = new Set(currentPlayerIds);
@@ -352,10 +373,16 @@ wss.on('connection', (ws) => {
           playerNameMap.set(aiId, aiId);
         }
 
-        const game = new MafiaGame(allPlayers, data => broadcastToRoom(currentRoom, data), (playerId, msg) => sendTo(playerId, msg));
+        // ✅ 새 MafiaGame 인스턴스 생성
+        const game = new MafiaGame(
+          currentRoom,
+          allPlayers,
+          data => broadcastToRoom(currentRoom, data),
+          (playerId, msg) => sendTo(playerId, msg),
+          rooms
+        );
         room.game = game;
 
-        // ✅ 역할 먼저 배정
         game.assignRoles();
 
         // ✅ 1. 역할 기반 playerList 구성 → room_info 먼저 보냄
@@ -390,10 +417,10 @@ wss.on('connection', (ws) => {
           }
         });
 
-        // ✅ 3. game.startNight() 호출 (roles → room_info → your_role 이후)
+        // ✅ 3. night 시작
         game.startNight();
 
-        // ✅ 4. Ready 상태 초기화 및 broadcast
+        // ✅ 4. Ready 상태 초기화 및 브로드캐스트
         for (const id of room.players) {
           room.readyPlayers[id] = false;
         }
@@ -407,8 +434,8 @@ wss.on('connection', (ws) => {
         });
 
         console.log("🎮 게임 시작!");
-        return;
       }
+
 
       if (msg.type === 'set_ready') {
         const room = rooms[currentRoom];

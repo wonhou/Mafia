@@ -1,7 +1,9 @@
 const axios = require('axios');
 
 class MafiaGame {
-  constructor(players, broadcastFunc, sendToFunc) {
+  constructor(roomId, players, broadcastFunc, sendToFunc, roomsRef) {
+    this.roomId = roomId;
+    this.rooms = roomsRef;
     this.players = players;
     this.broadcast = broadcastFunc;
     this.sendTo = sendToFunc;
@@ -69,6 +71,7 @@ class MafiaGame {
 
 
   async startNight() {
+    if (!this.isAlive) return;
     this.day++;
     this.state = 'night';
     this.humanNightActions = {};
@@ -79,7 +82,14 @@ class MafiaGame {
       message: `${this.day}번째 밤입니다. 마피아, 의사, 경찰은 행동을 선택하세요.`
     });
 
+    // system 메시지를 chatHistory에 저장
+    this.chatHistory.push({
+      sender: "system",
+      message: `${this.day}번째 밤입니다. 마피아, 의사, 경찰은 행동을 선택하세요.`
+    });
+
     setTimeout(() => {
+      if (!this.isAlive) return;
       this.broadcast({
         type: "night_end"
       });
@@ -89,8 +99,8 @@ class MafiaGame {
       if (!this.isAlive) return;
       const nightActions = await this.collectNightActions();
       if (!this.isAlive) return;
-      await this.handleNightActions(nightActions);
-      if (!this.isAlive) return;
+      const gameEnded = await this.handleNightActions(nightActions);
+      if (!this.isAlive || gameEnded) return;
 
       this.state = 'day';
       this.startDay();
@@ -226,6 +236,18 @@ class MafiaGame {
       saved: doctorTarget ?? null,
       investigated: policeTarget ?? null
     });
+
+    const winner = this.checkWinCondition();
+    if (winner) {
+      this.isAlive = false;
+      this.players = this.players.filter(p => !p.id.startsWith("ai_"));
+      if (this.rooms && this.rooms[this.roomId]) {
+        this.rooms[this.roomId].players = this.rooms[this.roomId].players.filter(id => !id.startsWith("ai_"));
+      }
+      this.broadcast({ type: 'game_over', message: winner });
+      console.log(`🏁 게임 종료! 승리: ${winner}`);
+      return true;
+    }
   }
 
   async startDay() {
@@ -239,6 +261,11 @@ class MafiaGame {
       message: `${this.day}번째 낮입니다. 자유롭게 토론하세요.`
     });
 
+    this.chatHistory.push({
+      sender: "system",
+      message: `${this.day}번째 낮입니다. 자유롭게 토론하세요.`
+    });
+
     await this.sendChatPhase();  // 시간 기반 발언
 
     await this.startVote();
@@ -247,7 +274,7 @@ class MafiaGame {
   async sendChatPhase() {
     if (!this.isAlive) return;
     const aliveAIs = this.players.filter(p => p.isAI && p.alive);
-    const endTime = Date.now() + 20000;  // 낮 턴 제한 시간: 2분
+    const endTime = Date.now() + 5000;  // 낮 턴 제한 시간: 2분
 
     // 각 AI당 발언 횟수 2~3회로 제한
     const speakCountMap = {};
@@ -423,7 +450,15 @@ class MafiaGame {
 
     const winner = this.checkWinCondition();
     if (winner) {
-      this.broadcast({ type: 'game_over', winner });
+      this.isAlive = false;
+      // 🔻 게임 종료 직전에 AI 유저들 제거
+      this.players = this.players.filter(p => !p.id.startsWith("ai_"));
+
+      if (this.rooms && this.rooms[this.roomId]) {
+        this.rooms[this.roomId].players = this.rooms[this.roomId].players.filter(id => !id.startsWith("ai_"));
+      }
+
+      this.broadcast({ type: 'game_over', message: winner });
       console.log(`🏁 게임 종료! 승리: ${winner}`);
       return;
     }
@@ -433,10 +468,14 @@ class MafiaGame {
 
   checkWinCondition() {
     const aliveMafia = this.players.filter(p => p.alive && p.role === 'mafia').length;
-    const aliveCitizens = this.players.filter(p => p.alive && p.role !== 'mafia').length;
+    const aliveNonMafia = this.players.filter(p => p.alive && p.role !== 'mafia').length;
 
+    // 우선순위: 마피아가 시민 이상일 경우 마피아 승
+    if (aliveMafia >= aliveNonMafia && aliveMafia > 0) return 'mafia';
+
+    // 마피아가 모두 죽었을 경우 시민 승
     if (aliveMafia === 0) return 'citizen';
-    if (aliveMafia >= aliveCitizens) return 'mafia';
+
     return null;
   }
 }
