@@ -137,4 +137,39 @@ public class GameSceneManager : MonoBehaviour
             }
         }
     }
+    public void ResetUI()
+    {
+        // 턴 텍스트 초기화
+        if (turnText != null)
+            turnText.text = "";
+
+        // 플레이어 슬롯 초기화
+        if (playerSlots != null)
+        {
+            foreach (var slot in playerSlots)
+            {
+                if (slot != null)
+                    slot.SetActive(false);
+            }
+        }
+    }
+    public void ClearUI()
+    {
+        // 선택 UI 끄기
+        TargetSelectUIManager.Instance?.DisableAllTargetButtons();
+
+        // 턴 텍스트 초기화
+        if (turnText != null)
+            turnText.text = "";
+
+        // 플레이어 슬롯 초기화
+        if (playerSlots != null)
+        {
+            foreach (var slot in playerSlots)
+            {
+                if (slot != null)
+                    slot.SetActive(false);
+            }
+        }
+    }
 }
