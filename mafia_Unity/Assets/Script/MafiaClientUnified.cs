@@ -698,7 +698,7 @@ public class MafiaClientUnified : MonoBehaviour
     {
         ChatManager.Instance?.AddSystemMessage($"당신의 직업은 {roleKor}입니다.");
         GameSceneManager.Instance.SetRoomMeta(roomName, roomId);
-        GameSceneManager.Instance.SetTurn(0, "밤");
+        GameSceneManager.Instance.SetTurn(1, "밤");
 
         ChatManager.Instance?.AddSystemMessage("1번째 밤입니다. 마피아, 의사, 경찰은 행동을 선택하세요.");
     }
