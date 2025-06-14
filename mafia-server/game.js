@@ -398,6 +398,7 @@ class MafiaGame {
   }
 
   resolveVote() {
+    if (!this.isAlive) return;
     console.log("🗳️ [resolveVote] 투표 집계 시작");
 
     const voteResult = {};
