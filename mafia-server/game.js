@@ -69,9 +69,15 @@ class MafiaGame {
 
 
   async startNight() {
+    this.day++;
     this.state = 'night';
     this.humanNightActions = {};
     console.log(`🌙 밤 ${this.day} 시작`);
+
+    this.broadcast({
+      type: "night_start",
+      message: `${this.day}번째 밤입니다. 마피아, 의사, 경찰은 행동을 선택하세요.`
+    });
 
     setTimeout(() => {
       this.broadcast({
@@ -230,7 +236,7 @@ class MafiaGame {
 
     this.broadcast({
       type: 'day_start',
-      message: `낮 ${this.day}이 시작되었습니다. 자유롭게 토론하세요.`
+      message: `${this.day}번째 낮입니다. 자유롭게 토론하세요.`
     });
 
     await this.sendChatPhase();  // 시간 기반 발언
@@ -324,9 +330,8 @@ class MafiaGame {
     console.log("🗳️ 투표 시작됨!");
 
     const alivePlayerIds = this.players.filter(p => p.alive).map(p => p.id);
-
     this.broadcast({
-      type: 'start_vote',
+      type: 'vote_start',
       alivePlayers: alivePlayerIds
     });
 
@@ -334,7 +339,6 @@ class MafiaGame {
 
     for (const ai of aliveAIs) {
       try {
-
         const availableTargets = alivePlayerIds.filter(id => id !== ai.id);
 
         const res = await axios.post(`http://localhost:4000/vote-suggestion`, {
@@ -349,33 +353,54 @@ class MafiaGame {
         console.error(`❌ 투표 추천 실패 (${ai.id}):`, err.message);
       }
     }
+
+    // 사람 플레이어는 vote_end 신호까지 기다림
+    setTimeout(() => {
+      this.broadcast({ type: "vote_end" });
+
+      // 무조건 1초 후 vote 처리
+      setTimeout(() => {
+        this.resolveVote();
+      }, 1000);
+    }, 15000);
   }
 
   receiveVote(from, target) {
     this.votes[from] = target;
     console.log(`🗳️ ${from} → ${target}`);
-
-    const totalVotesNeeded = this.players.filter(p => p.alive).length;
-    const voteCount = Object.keys(this.votes).length;
-
-    if (voteCount >= totalVotesNeeded) {
-      this.resolveVote();
-    }
   }
 
   resolveVote() {
+    console.log("🗳️ [resolveVote] 투표 집계 시작");
+
     const voteResult = {};
     Object.values(this.votes).forEach(target => {
+      if (!target) return;
       voteResult[target] = (voteResult[target] || 0) + 1;
     });
 
-    let maxVotes = 0;
+    console.log("📊 집계된 투표 결과:", voteResult);
+
+    const entries = Object.entries(voteResult);
+    if (entries.length === 0) {
+      console.log("⚠️ 아무도 투표하지 않음");
+      this.broadcast({ type: 'vote_result', executed: null });
+      this.startNight();
+      return;
+    }
+
+    const maxVotes = Math.max(...entries.map(([_, count]) => count));
+    const topVoted = entries.filter(([_, count]) => count === maxVotes);
+
+    console.log("🏅 최다 득표 수:", maxVotes);
+    console.log("🧮 최다 득표자 목록:", topVoted.map(([id, _]) => id));
+
     let targetToKill = null;
-    for (const [target, count] of Object.entries(voteResult)) {
-      if (count > maxVotes) {
-        maxVotes = count;
-        targetToKill = target;
-      }
+    if (maxVotes > 0 && topVoted.length === 1) {
+      targetToKill = topVoted[0][0];
+      console.log(`🎯 유일한 최다 득표자: ${targetToKill}`);
+    } else {
+      console.log("⚖️ 동점 발생 → 아무도 처형하지 않음");
     }
 
     if (targetToKill) {
@@ -393,16 +418,16 @@ class MafiaGame {
 
     this.broadcast({
       type: 'vote_result',
-      executed: targetToKill ?? null
+      executed: targetToKill
     });
 
     const winner = this.checkWinCondition();
     if (winner) {
       this.broadcast({ type: 'game_over', winner });
+      console.log(`🏁 게임 종료! 승리: ${winner}`);
       return;
     }
 
-    this.day++;
     this.startNight();
   }
 

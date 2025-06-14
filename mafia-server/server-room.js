@@ -323,7 +323,6 @@ wss.on('connection', (ws) => {
         const room = rooms[currentRoom];
         if (!room) return;
 
-        // ✅ 준비 상태 체크: 방장을 제외한 모든 유저가 Ready 상태여야 함
         room.readyPlayers = room.readyPlayers || {};
         const ownerId = room.players[0];
         const nonOwnerPlayers = room.players.filter(id => id !== room.owner && !id.startsWith('ai_'));
@@ -334,7 +333,6 @@ wss.on('connection', (ws) => {
           return;
         }
 
-        // 부족한 플레이어 수만큼 AI 추가
         const currentPlayerIds = room.players;
         const playerCount = currentPlayerIds.length;
 
@@ -345,22 +343,57 @@ wss.on('connection', (ws) => {
 
         room.players.push(...availableAIs);
 
-        // 모든 플레이어 구성
         const allPlayers = room.players.map(id => ({
           id,
           isAI: id.startsWith('ai_')
         }));
 
-        // ai 닉네임
         for (const aiId of availableAIs) {
-          playerNameMap.set(aiId, aiId);  // 또는 playerNameMap.set(aiId, "AI_" + aiId.split("_")[1]);
+          playerNameMap.set(aiId, aiId);
         }
 
-        // 게임 인스턴스 생성 및 시작
         const game = new MafiaGame(allPlayers, data => broadcastToRoom(currentRoom, data), (playerId, msg) => sendTo(playerId, msg));
         room.game = game;
 
-        // Ready 상태 초기화
+        // ✅ 역할 먼저 배정
+        game.assignRoles();
+
+        // ✅ 1. 역할 기반 playerList 구성 → room_info 먼저 보냄
+        const playerList = room.players.map((id, index) => {
+          const gamePlayer = game.players.find(p => p.id === id);
+          return {
+            id,
+            name: playerNameMap.get(id) || "???",
+            slot: index,
+            isOwner: index === 0,
+            isAlive: gamePlayer?.alive ?? true,
+            role: gamePlayer?.role ?? null
+          };
+        });
+
+        broadcastToRoom(currentRoom, {
+          type: 'room_info',
+          roomId: currentRoom,
+          roomName: room.name,
+          players: playerList,
+          isOwner: false
+        });
+
+        // ✅ 2. your_role 개별 전송
+        room.players.forEach((playerId) => {
+          const gamePlayer = game.players.find(p => p.id === playerId);
+          if (!playerId.startsWith("ai_") && gamePlayer) {
+            sendTo(playerId, {
+              type: 'your_role',
+              role: gamePlayer.role
+            });
+          }
+        });
+
+        // ✅ 3. game.startNight() 호출 (roles → room_info → your_role 이후)
+        game.startNight();
+
+        // ✅ 4. Ready 상태 초기화 및 broadcast
         for (const id of room.players) {
           room.readyPlayers[id] = false;
         }
@@ -372,28 +405,10 @@ wss.on('connection', (ws) => {
             isReady
           }))
         });
-        
-        const playerList = room.players.map((id, index) => ({
-          id,
-          name: playerNameMap.get(id) || "???",
-          slot: index,
-          isOwner: index === 0,
-          isAlive: game.players.find(p => p.id === id)?.alive ?? true
-        }));
-
-        broadcastToRoom(currentRoom, {
-          type: 'room_info',
-          roomId: currentRoom,
-          roomName: room.name,
-          players: playerList,
-          isOwner: false // 클라이언트가 각자 판단
-        });
 
         console.log("🎮 게임 시작!");
-        game.startGame();
         return;
       }
-
 
       if (msg.type === 'set_ready') {
         const room = rooms[currentRoom];
@@ -439,6 +454,23 @@ wss.on('connection', (ws) => {
 
         console.log("🗳️ 투표 시작됨!");
         room.game.startVote();  // AI가 투표 대상 정하고 처리
+      }
+
+      if (msg.type === 'vote') {
+        const roomId = playerRoomMap.get(currentPlayerId);
+        const room = rooms[roomId];
+
+        if (!room || !room.game) {
+          console.warn(`⚠️ 투표 수신 실패 - 유효한 방 또는 게임 없음`);
+          return;
+        }
+
+        const fromId = currentPlayerId;
+        const target = msg.target;
+
+        console.log(`📥 [vote] 수신됨: ${fromId} → ${target}`);
+        room.game.receiveVote(fromId, target);
+        return;
       }
 
       if (msg.type === 'night_action') {
