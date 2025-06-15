@@ -69,6 +69,7 @@ AI_PERSONALITIES = {
 class Player(BaseModel):
     id: str
     isAI: bool
+    role: str
 
 class InitPayload(BaseModel):
     roomId: str
@@ -158,6 +159,13 @@ def save_chat(room_id: str, sender: str, message: str):
 
 @app.post("/init")
 def init(payload: InitPayload):
+    # 동료 마피아 리스트 추출
+    mafia_ids = [
+        p.id for p in payload.allPlayers
+        if p.role == "mafia" and p.id != payload.playerId
+    ] if payload.role == "mafia" else []
+
+    # 기존 memory 구조 + mafiaIds 추가
     memory.setdefault(payload.roomId, {})[payload.playerId] = {
         "role": payload.role,
         "allPlayers": payload.allPlayers,
