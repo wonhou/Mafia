@@ -14,7 +14,7 @@ client = OpenAI()
 
 # 내부 상태 저장소
 #memory: Dict[str, Dict] = {}
-memory: Dict[str, Dict[str, Dict]] = {} #memory[roomId][playerId]
+memory: Dict[str, Dict[str, Dict]] = {} #memory[roomId][playerId] memory[roomId][chat_history]
 
 # 규칙 선언 강민우
 COMMON_RULES = """마피아 게임의 규칙을 인식하고 준수하세요.
@@ -309,7 +309,7 @@ def vote_suggestion(payload: VotePayload):
     # )
     chat_log = memory.get(payload.roomId, {}).get("chat_history", [])
     history_text = "\n".join(
-        f"{item['sender']}: {item['message']}" for item in chat_log
+        f"{item['sender']}: {item['message']} {item['timestamp']}" for item in chat_log
     )
     prompt = f"""당신은 마피아 게임 참가자입니다.
 지금은 낮이며, 투표를 통해 마피아를 찾아야 합니다.
