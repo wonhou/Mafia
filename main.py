@@ -105,12 +105,14 @@ class InvestigationPayload(BaseModel):
     isMafia: bool
 
 # system_prompt 만드는 함수
-# player_id -> rule + id별 성격 + role -> system_prompt
+# player_id -> id + rule + id별 성격 + role -> system_prompt
 def get_system_prompt(room_id: str, player_id: str) -> str:
     personality = AI_PERSONALITIES.get(player_id, "특징 없는 평범한 플레이어.")
     role = memory.get(room_id, {}).get(player_id, {}).get("role", "citizen")
 
     return f"""{COMMON_RULES}
+
+너의 이름(ID)은 {player_id}이니까 반드시 기억해야돼.
 
 너의 성격은 다음과 같아:
 {personality}
