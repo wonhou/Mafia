@@ -396,7 +396,13 @@ wss.on('connection', (ws) => {
           };
 
           try {
-            await axios.post("http://localhost:4000/init", payload);
+            await axios.post("http://localhost:4000/init", {
+              playerId: aiId,
+              role: aiRole,
+              allPlayers,
+              roomId: currentRoom, //강민우
+              settings: {}
+            });
             console.log(`✅ AI 초기화 완료: ${aiId} (${aiRole})`);
           } catch (err) {
             console.error(`❌ AI 초기화 실패: ${aiId}`, err.message);

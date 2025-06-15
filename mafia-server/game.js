@@ -120,6 +120,7 @@ class MafiaGame {
     const aliveAIs = this.players.filter(p => p.isAI && p.alive);
     for (const ai of aliveAIs) {
       const payload = {
+        roomId: this.roomId,
         playerId: ai.id,
         role: ai.role,
         alivePlayers: this.players.filter(p => p.alive).map(p => p.id),
@@ -229,6 +230,53 @@ class MafiaGame {
       };
     }
 
+    //강민우 memory in main.py
+    const mafiaPlayers = this.players.filter(p => p.role === 'mafia' && p.alive);
+    for (const mafia of mafiaPlayers) {
+      await axios.post(`http://localhost:4000/night-summary`, {
+        roomId: this.roomId,
+        role: 'mafia',
+        playerId: mafia.id,
+        day: this.day,
+        data: { target: targetToKill }
+      });
+    }
+    if (police && policeTarget) {
+      const investigated = this.players.find(p => p.id === policeTarget);
+      if (investigated) {
+        this.lastInvestigation = {
+          policeId: police.id,
+          target: investigated.id,
+          isMafia: investigated.role === 'mafia'
+        };
+        await axios.post(`http://localhost:4000/night-summary`, {
+          roomId: this.roomId,
+          role: 'police',
+          playerId: police.id,
+          day: this.day,
+          data: {
+            target: investigated.id,
+            isMafia: investigated.role === 'mafia'
+          }
+        });
+      }
+    }
+    if (doctor && doctorTarget) {
+      this.lastSaved = {
+        doctorId: doctor.id,
+        saved: doctorTarget
+      };
+
+      await axios.post(`http://localhost:4000/night-summary`, {
+        roomId: this.roomId,
+        role: 'doctor',
+        playerId: doctor.id,
+        day: this.day,
+        data: { target: doctorTarget }
+      });
+    }
+
+
     // 결과 브로드캐스트
     this.broadcast({
       type: "night_result",
@@ -279,7 +327,7 @@ class MafiaGame {
   async sendChatPhase() {
     if (!this.isAlive) return;
     const aliveAIs = this.players.filter(p => p.isAI && p.alive);
-    const endTime = Date.now() + 20000;  // 낮 턴 제한 시간: 2분
+    const endTime = Date.now() + 120000;  // 낮 턴 제한 시간: 2분
 
     // 각 AI당 발언 횟수 2~3회로 제한
     const speakCountMap = {};
@@ -304,6 +352,7 @@ class MafiaGame {
 
       try {
         const res = await axios.post(`http://localhost:4000/chat-request`, {
+          roomId: this.roomId,
           playerId: ai.id,
           history: this.chatHistory,
           day: this.day,
@@ -374,6 +423,7 @@ class MafiaGame {
         const availableTargets = alivePlayerIds.filter(id => id !== ai.id);
 
         const res = await axios.post(`http://localhost:4000/vote-suggestion`, {
+          roomId: this.roomId,
           playerId: ai.id,
           history: this.chatHistory,
           alivePlayers: availableTargets
