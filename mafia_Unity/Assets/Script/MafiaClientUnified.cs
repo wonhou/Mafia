@@ -19,6 +19,7 @@ public class ServerMessage
     public string role;
     public string roomId;
     public string roomName;
+    public string[] mafiaIds;
 }
 
 [System.Serializable]
@@ -485,6 +486,32 @@ public class MafiaClientUnified : MonoBehaviour
                         RefreshPlayerUI();
                         break;
 
+                    // 최범수 : 마피아끼리 채팅, 행동
+                    case "mafia_info":
+                    {
+                        Debug.Log("📥 mafia_info 메시지 수신");
+
+                        if (root.mafiaIds != null)
+                        {
+                            Debug.Log("📋 받은 mafiaIds: " + string.Join(", ", root.mafiaIds));
+                        }
+    
+                        if (root.mafiaIds != null && root.mafiaIds.Length > 0)
+                        {
+                            string selfId = playerId;
+                            var others = root.mafiaIds.Where(id => id != selfId).ToList();
+                            string names = string.Join(", ", others.Select(id => {
+                                var p = currentPlayers?.FirstOrDefault(x => x.id == id);
+                                return p?.name ?? id;
+                            }));
+
+                            if (!string.IsNullOrEmpty(names))
+                            {
+                                StartCoroutine(WaitAndShowMafiaInfo(names));
+                            }
+                        }
+                        break;
+                    }
 
                     default:
                         Debug.Log("📦 처리되지 않은 메시지: " + message);
@@ -514,6 +541,25 @@ public class MafiaClientUnified : MonoBehaviour
         catch (System.Exception ex)
         {
             Debug.LogError("⚠️ WebSocket 연결 실패: " + ex.Message);
+        }
+    }
+
+    private IEnumerator WaitAndShowMafiaInfo(string names)
+    {
+        float timeout = 3f;
+        while ((ChatManager.Instance == null || GameSceneManager.Instance == null) && timeout > 0f)
+        {
+            yield return null;
+            timeout -= Time.deltaTime;
+        }
+
+        if (ChatManager.Instance != null)
+        {
+            ChatManager.Instance.AddSystemMessage($"당신의 마피아 동료: {names}");
+        }
+        else
+        {
+            Debug.LogWarning("💥 ChatManager.Instance 초기화 실패 (마피아 정보 출력 못함)");
         }
     }
 
@@ -565,16 +611,16 @@ public class MafiaClientUnified : MonoBehaviour
                 break;
 
             case "your_role":
-            {
-                currentRole = msg.role;
-
-                string roleKor = currentRole switch
                 {
-                    "mafia" => "마피아",
-                    "doctor" => "의사",
-                    "police" => "경찰",
-                    _ => "시민"
-                };
+                    currentRole = msg.role;
+
+                    string roleKor = currentRole switch
+                    {
+                        "mafia" => "마피아",
+                        "doctor" => "의사",
+                        "police" => "경찰",
+                        _ => "시민"
+                    };
 
                     if (GameSceneManager.Instance == null)
                     {
@@ -588,65 +634,65 @@ public class MafiaClientUnified : MonoBehaviour
                         GameSceneManager.Instance.StartTurnTimer(15);
                     }
 
-                break;
-            }
+                    break;
+                }
 
             case "night_start":
-            {
-                if (!string.IsNullOrEmpty(msg.message))
                 {
-                    if (ChatManager.Instance != null)
-                        ChatManager.Instance.AddSystemMessage(msg.message);
+                    if (!string.IsNullOrEmpty(msg.message))
+                    {
+                        if (ChatManager.Instance != null)
+                            ChatManager.Instance.AddSystemMessage(msg.message);
+                        else
+                            Debug.LogWarning("💥 ChatManager.Instance가 null입니다 (night_start)");
+                    }
                     else
-                        Debug.LogWarning("💥 ChatManager.Instance가 null입니다 (night_start)");
-                }
-                else
-                {
-                    if (ChatManager.Instance != null)
-                        ChatManager.Instance.AddSystemMessage("밤이 되었습니다. 마피아, 의사, 경찰은 행동을 선택하세요.");
-                }
+                    {
+                        if (ChatManager.Instance != null)
+                            ChatManager.Instance.AddSystemMessage("밤이 되었습니다. 마피아, 의사, 경찰은 행동을 선택하세요.");
+                    }
 
-                if (GameSceneManager.Instance != null)
-                {
-                    GameSceneManager.Instance.UpdateTurnPhase(true);
-                    GameSceneManager.Instance.StartTurnTimer(15);
-                }
-                else
-                {
-                    Debug.LogWarning("💥 GameSceneManager.Instance가 null입니다 (night_start)");
-                }
+                    if (GameSceneManager.Instance != null)
+                    {
+                        GameSceneManager.Instance.UpdateTurnPhase(true);
+                        GameSceneManager.Instance.StartTurnTimer(15);
+                    }
+                    else
+                    {
+                        Debug.LogWarning("💥 GameSceneManager.Instance가 null입니다 (night_start)");
+                    }
 
-                StartCoroutine(WaitUntilTargetSelectUIReady(currentRole));
-                break;
-            }
+                    StartCoroutine(WaitUntilTargetSelectUIReady(currentRole));
+                    break;
+                }
 
             case "day_start":
-            {
-                if (!string.IsNullOrEmpty(msg.message))
                 {
-                    if (ChatManager.Instance != null)
-                        ChatManager.Instance.AddSystemMessage(msg.message);
+                    if (!string.IsNullOrEmpty(msg.message))
+                    {
+                        if (ChatManager.Instance != null)
+                            ChatManager.Instance.AddSystemMessage(msg.message);
+                        else
+                            Debug.LogWarning("💥 ChatManager.Instance가 null입니다 (day_start)");
+                    }
                     else
-                        Debug.LogWarning("💥 ChatManager.Instance가 null입니다 (day_start)");
-                }
-                else
-                {
-                    if (ChatManager.Instance != null)
-                        ChatManager.Instance.AddSystemMessage("낮이 되었습니다. 자유롭게 토론을 시작하세요.");
-                }
+                    {
+                        if (ChatManager.Instance != null)
+                            ChatManager.Instance.AddSystemMessage("낮이 되었습니다. 자유롭게 토론을 시작하세요.");
+                    }
 
-                if (GameSceneManager.Instance != null)
-                {
-                    GameSceneManager.Instance.UpdateTurnPhase(false);
-                    GameSceneManager.Instance.StartTurnTimer(120);
-                }
-                else
-                    Debug.LogWarning("💥 GameSceneManager.Instance가 null입니다 (day_start)");
+                    if (GameSceneManager.Instance != null)
+                    {
+                        GameSceneManager.Instance.UpdateTurnPhase(false);
+                        GameSceneManager.Instance.StartTurnTimer(120);
+                    }
+                    else
+                        Debug.LogWarning("💥 GameSceneManager.Instance가 null입니다 (day_start)");
 
-                TargetSelectUIManager.Instance?.DisableAllTargetButtons();
-                RefreshPlayerUI();
-                break;
-            }
+                    TargetSelectUIManager.Instance?.DisableAllTargetButtons();
+                    RefreshPlayerUI();
+                    break;
+                }
 
             case "night_end":
                 GameSceneManager.Instance?.StopTurnTimer();
@@ -673,7 +719,7 @@ public class MafiaClientUnified : MonoBehaviour
             case "game_over":
                 GameSceneManager.Instance?.StopTurnTimer();
                 string winner = msg.message;
-                    
+
                 if (ChatManager.Instance != null)
                 {
                     ChatManager.Instance.AddSystemMessage($"{(winner == "mafia" ? "마피아" : "시민")} 팀이 승리했습니다!", Color.green);
@@ -690,7 +736,7 @@ public class MafiaClientUnified : MonoBehaviour
                     StartCoroutine(ReturnToRoomSceneAfterDelay(3f));
                 }
                 break;
-                
+
         }
     }
 
