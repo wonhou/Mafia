@@ -40,57 +40,57 @@
 # 3. 게임 실행 방법
 
 ### 필요 파일
-![Image](https://github.com/user-attachments/assets/7792856e-d263-4c93-ade9-bef00f69f37f)
+![Image](https://github.com/user-attachments/assets/c6bdb286-e960-47b8-8dc2-bbcd88bb7565)
 
 유니티와 node.js파일이 필요합니다. 노드 JS로 server-room.js를 실행시켜 줘야 합니다.
 
 ### 첫 화면
-![Image](https://github.com/user-attachments/assets/eb3d18e5-007b-457d-b8af-e32efc8905ab)
+![Image](https://github.com/user-attachments/assets/c5d603c7-7c95-4880-812f-0fd3f381af7e)
 
 유저 로그인 기능이 구현되어 있습니다.
 
 ### 로비 화면
-![Image](https://github.com/user-attachments/assets/8b74f33d-0a14-4835-971f-704847f0cdb3)
+![Image](https://github.com/user-attachments/assets/3fa18b92-e439-41b1-9271-00ebc23817c9)
 
 로그인 후에는 로비 화면이 나오게 되며 다른 플레이어가 만든 방을 확인할 수 있고 자기가 방을 만들수도 있습니다.
 
 ### 방 화면
-![Image](https://github.com/user-attachments/assets/ff099506-3c93-4cf5-a648-dc5061c3cef7)
+![Image](https://github.com/user-attachments/assets/e49e26cf-2e4d-4300-9134-4fcee7b5abe5)
 
 다른 유저들의 준비가 완료되면 호스트(방장)는 게임을 시작할 수 있습니다.
 
 ### 방 만드는 화면
-![Image](https://github.com/user-attachments/assets/2c2c80fa-d5d4-414a-8f8d-4a6ce996639b)
+![Image](https://github.com/user-attachments/assets/4dbf682e-6995-4727-838e-1acdbb5f3988)
 
 자기가 방을 만들 때는 로비 화면에서 CREATE ROOM을 통해 만들 수 있습니다.
 
 ### 자기가 방장인 경우
-![Image](https://github.com/user-attachments/assets/6ea6199c-05ec-451f-8bf2-b599f63233fb)
+![Image](https://github.com/user-attachments/assets/9931d321-c80c-4841-a828-13592793a52b)
 
 START버튼이 활성화 되며, 8명의 인원이 다 차지 않아도 시작이 가능합니다.
 
 ### 게임 시작
-![Image](https://github.com/user-attachments/assets/0097d13d-d74d-4588-83ce-82f73e0ab2d1)
+![Image](https://github.com/user-attachments/assets/d1064c84-d10b-44af-ab88-81afeb5239b2)
 
 처음에 자기 직업을 배정받으며 왼쪽 위에는 몇번째 낮/밤 인지, 유저 이름이 나타나 있습니다.
 
 ### 투표시
-![Image](https://github.com/user-attachments/assets/95e78e35-49cf-4fe7-b116-bb393dac4689)
+![Image](https://github.com/user-attachments/assets/d1b9bf57-d32c-42b9-bf4c-230f895b42c4)
 
 투표 시 해당 아이디에 구별하기 쉽게 나타나 있습니다.
 
 ### 낮
-![Image](https://github.com/user-attachments/assets/5f37950b-5d29-40ed-9b12-214c06e53972)
+![Image](https://github.com/user-attachments/assets/c10ec26e-4984-4d62-bdbd-08a410004583)
 
 다음과 같이 AI와 대화를 통해 마피아를 추리합니다.
 
 ### 낮 투표 시작
-![Image](https://github.com/user-attachments/assets/51ead9bf-786f-4988-9249-9c727caad13f)
+![Image](https://github.com/user-attachments/assets/91b82433-5734-4d3f-aff2-dabf047ac5b5)
 
 투표가 시작되면 처형할 사람을 고릅니다. AI또한 처형할 사람을 선택하게 됩니다.
 
 ### 투표 종료 후 2일차 밤 시작
-![Image](https://github.com/user-attachments/assets/97917749-f71a-4cb3-8c48-9a60f57273f8)
+![Image](https://github.com/user-attachments/assets/86fbd9c9-8f51-4c39-b7f5-d88c8f9bfaca)
 
 투표가 종료된 후 가장 마피아로 의심되는 사람이 처형되고, 다시 밤이 시작됩니다. 이와 같은 과정을 거쳐 마피아가 마피아와 시민의 수가 같아지거나 모든 마피아를 제거하면 게임이 끝나게 됩니다.
 
