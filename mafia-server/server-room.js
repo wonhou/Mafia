@@ -385,6 +385,9 @@ wss.on('connection', (ws) => {
 
         game.assignRoles();
 
+        // 역할 정보 전송
+        game.broadcastRoles();
+
         for (const aiId of availableAIs) {
           const aiRole = game.getRoleOf(aiId);
 

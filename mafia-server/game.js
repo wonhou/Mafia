@@ -54,13 +54,17 @@ class MafiaGame {
   }
 
   broadcastRoles() {
-    for (const p of this.players) {
-      if (p.id.startsWith("ai_")) continue;  // AI는 제외
+    const mafiaIds = this.players
+      .filter(p => p.role === 'mafia')
+      .map(p => p.id);
 
-      this.sendTo(p.id, {
-        type: "your_role",
-        role: p.role
-      });
+    for (const p of this.players) {
+      if (p.role === "mafia") {
+        this.sendTo(p.id, {
+          type: "mafia_info",
+          mafiaIds: mafiaIds
+        });
+      }
     }
   }
 
