@@ -23,7 +23,7 @@ assistant:	모델의 이전 응답 (대화 맥락 유지에 필요)
 
 ### 🤖 사용 모델
 
-- **모델명**: GPT-4 (OpenAI)
+- **모델명**: GPT-4.1 nano (OpenAI)
 - **API 타입**: Chat Completion API
 - **모델 목적**: 마피아 게임 내 AI 플레이어가 역할에 따라 상황에 맞는 대화 생성
 
