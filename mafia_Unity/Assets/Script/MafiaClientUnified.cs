@@ -700,6 +700,7 @@ public class MafiaClientUnified : MonoBehaviour
             yield return null;
 
         ApplyRoleToScene(roleKor);
+        GameSceneManager.Instance.StartTurnTimer(15);
     }
 
     private void ApplyRoleToScene(string roleKor)
