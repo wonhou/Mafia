@@ -285,7 +285,7 @@ public class MafiaClientUnified : MonoBehaviour
             return;
         }
 
-        websocket = new WebSocket("ws://3.37.55.237:3000");
+        websocket = new WebSocket("ws://localhost:3000");
 
         websocket.OnOpen += () =>
         {
@@ -452,10 +452,11 @@ public class MafiaClientUnified : MonoBehaviour
                         TargetSelectUIManager.Instance?.Show(
                             currentPlayers.Where(p => p.isAlive).Select(p => p.id).ToList(),
                             "vote"); // 낮이므로 role = null
-
+                        GameSceneManager.Instance.StartTurnTimer(15);
                         break;
 
                     case "vote_end":
+                        GameSceneManager.Instance?.StopTurnTimer();
                         string voteTarget = TargetSelectUIManager.Instance.GetSelectedTarget();
                         if (!string.IsNullOrEmpty(voteTarget))
                         {
@@ -580,10 +581,11 @@ public class MafiaClientUnified : MonoBehaviour
                         Debug.Log("▶ 게임 씬으로 이동합니다");
                         UnityEngine.SceneManagement.SceneManager.LoadScene("Game_Room");
                         StartCoroutine(WaitAndInitRole(roleKor));
-                }
+                    }
                     else
                     {
                         ApplyRoleToScene(roleKor);
+                        GameSceneManager.Instance.StartTurnTimer(15);
                     }
 
                 break;
@@ -607,6 +609,7 @@ public class MafiaClientUnified : MonoBehaviour
                 if (GameSceneManager.Instance != null)
                 {
                     GameSceneManager.Instance.UpdateTurnPhase(true);
+                    GameSceneManager.Instance.StartTurnTimer(15);
                 }
                 else
                 {
@@ -633,7 +636,10 @@ public class MafiaClientUnified : MonoBehaviour
                 }
 
                 if (GameSceneManager.Instance != null)
+                {
                     GameSceneManager.Instance.UpdateTurnPhase(false);
+                    GameSceneManager.Instance.StartTurnTimer(120);
+                }
                 else
                     Debug.LogWarning("💥 GameSceneManager.Instance가 null입니다 (day_start)");
 
@@ -643,6 +649,7 @@ public class MafiaClientUnified : MonoBehaviour
             }
 
             case "night_end":
+                GameSceneManager.Instance?.StopTurnTimer();
                 string targetId = TargetSelectUIManager.Instance.GetSelectedTarget();
                 if (!string.IsNullOrEmpty(targetId))
                 {
@@ -664,6 +671,7 @@ public class MafiaClientUnified : MonoBehaviour
                 break;
 
             case "game_over":
+                GameSceneManager.Instance?.StopTurnTimer();
                 string winner = msg.message;
                     
                 if (ChatManager.Instance != null)
@@ -772,6 +780,7 @@ public class MafiaClientUnified : MonoBehaviour
     {
         yield return new WaitForSeconds(delay);
 
+        GameSceneManager.Instance?.StopTurnTimer();
         TargetSelectUIManager.Instance?.DisableAllTargetButtons();
         GameSceneManager.Instance?.ClearUI();
 

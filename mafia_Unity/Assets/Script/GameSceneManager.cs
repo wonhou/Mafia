@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using System.Linq;
+using System.Collections;
 
 public class GameSceneManager : MonoBehaviour
 {
@@ -14,6 +15,8 @@ public class GameSceneManager : MonoBehaviour
     public GameObject[] playerSlots;      // Player1 ~ Player8 오브젝트들
     public int currentTurn = 1;
     public bool isNight = false;
+    public TextMeshProUGUI timerText;
+    private Coroutine timerCoroutine;
 
     void Awake()
     {
@@ -24,6 +27,48 @@ public class GameSceneManager : MonoBehaviour
     void Start()
     {
         Debug.Log($"🔍 GameSceneManager.playerSlots 연결 상태: {string.Join(", ", playerSlots.Select(s => s != null ? s.name : "null"))}");
+    }
+
+    /// <summary>
+    /// 타이머 시작
+    /// </summary>
+    public void StartTurnTimer(int seconds)
+    {
+        if (timerCoroutine != null)
+            StopCoroutine(timerCoroutine);
+
+        timerCoroutine = StartCoroutine(RunTimer(seconds));
+    }
+
+    private IEnumerator RunTimer(int seconds)
+    {
+        int timeLeft = seconds;
+        while (timeLeft > 0)
+        {
+            if (timerText != null)
+                timerText.text = $"{timeLeft}";
+
+            yield return new WaitForSeconds(1f);
+            timeLeft--;
+        }
+
+        if (timerText != null)
+            timerText.text = "시간 종료!";
+    }
+
+    /// <summary>
+    /// 타이머 종료 (중간에 강제 종료 시)
+    /// </summary>
+    public void StopTurnTimer()
+    {
+        if (timerCoroutine != null)
+        {
+            StopCoroutine(timerCoroutine);
+            timerCoroutine = null;
+        }
+
+        if (timerText != null)
+            timerText.text = "";
     }
 
     /// <summary>
