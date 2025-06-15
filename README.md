@@ -54,3 +54,13 @@ POST /chat_request
   "response": "이번에는 player_04를 제거하는 게 좋겠어."
 }
 ```
+
+
+--------------------------------------------------------------------
+접속 방법
+1. pem 파일이 있는 경로에서 git bash를 킨다.
+2. chmod 400 my-key.pem
+3. ssh -i "my-key.pem" ubuntu@<ec2_ip>
+4. tmux ls
+5. tmux attach -t <My_Server>
+*** ctr + c = 종료, ctr + b -> ctr만 때고 바로 d = 서버는 열어둔 상태로 나오기 ***
