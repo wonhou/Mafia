@@ -114,8 +114,15 @@ def get_system_prompt(room_id: str, player_id: str) -> str:
 
     mafia_info = ""
     if role == "mafia" and mafia_ids:
-        mafia_info = f"\n\n⚠️ 당신은 마피아이며, 같은 팀의 동료는 다음과 같습니다:\n{', '.join(mafia_ids)}\n- 이들과 협력하여 시민을 속이고 처치하는 것이 목표입니다.\n- 낮에는 이 사실을 숨기고 행동하세요."
+        mafia_info = f"""
+\n\n⚠️ 당신은 마피아이며, 같은 팀의 동료는 다음과 같습니다:
+{', '.join(mafia_ids)}
 
+- 이들과 협력하여 시민을 속이고 처치하는 것이 목표입니다.
+- 낮에는 이 사실을 숨기고 행동하세요.
+- 밤에는 서로를 절대 의심하지 말고, 시민 중 누가 경찰이나 의사인지 추측하며 전략을 짜세요.
+- 동료 마피아를 공격하거나, 제거 대상으로 언급하지 마세요. 중요!
+"""
     return f"""{COMMON_RULES}
 
 너의 이름(ID)은 {player_id}이니까 반드시 기억해야돼.
@@ -316,6 +323,49 @@ def chat_request(payload: ChatPayload):
 
     message = ask_gpt(prompt, system_prompt)
     save_chat(payload.roomId, payload.playerId, message)
+    return { "message": message.strip() }
+
+@app.post("/mafia-night-chat")
+def mafia_night_chat(payload: ChatPayload):
+    room_id = payload.roomId
+    player_id = payload.playerId
+
+    # 최근 낮 대화
+    chat_history = memory.get(payload.roomId, {}).get("chat_history", [])
+    mafia_chat = memory.get(payload.roomId, {}).get(payload.playerId, {}).get("mafiaChat", [])
+
+    # 둘을 섞어서 prompt 구성
+    history_text = (
+        "📜 낮 대화 요약:\n" +
+        "\n".join(f"{msg['sender']}: {msg['message']}" for msg in chat_history) +
+        "\n\n🤫 마피아끼리 대화:\n" +
+        "\n".join(f"{msg['sender']}: {msg['message']}" for msg in mafia_chat)
+    )
+
+    # system prompt 생성
+    system_prompt = get_system_prompt(room_id, player_id)
+    prompt = f"""지금은 밤이며 마피아끼리 은밀히 대화하고 있습니다.
+다른 마피아들이 누구를 죽일지 상의하거나, 시민 중 누가 경찰/의사인지 추측하고 전략을 공유하세요.
+- 불필요한 수식어는 빼고 요점만 말하세요.
+- 다른 마피아를 부르거나, 질문하거나, 의견을 낼 수 있습니다.
+- 당신은 절대로 자기 자신을 의심하거나 언급하지 마세요. 자신을 제거 대상으로 말하지 마세요.
+
+대화 예시는 다음과 같습니다:
+- "ai_3을 제거하자. 너무 말이 많아."
+- "의사는 ai_6 같아. 다음엔 그를 노리자."
+
+실제 발언을 생성하세요. 한 문장으로 출력하세요.
+
+{history_text}
+"""
+
+    message = ask_gpt(prompt, system_prompt)
+
+    # 저장
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    entry = {"sender": player_id, "message": message, "timestamp": timestamp}
+    memory.setdefault(room_id, {}).setdefault(player_id, {}).setdefault("mafiaChat", []).append(entry)
+
     return { "message": message.strip() }
 
 @app.post("/vote-suggestion")
