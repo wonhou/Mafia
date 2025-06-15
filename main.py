@@ -110,6 +110,11 @@ class InvestigationPayload(BaseModel):
 def get_system_prompt(room_id: str, player_id: str) -> str:
     personality = AI_PERSONALITIES.get(player_id, "특징 없는 평범한 플레이어.")
     role = memory.get(room_id, {}).get(player_id, {}).get("role", "citizen")
+    mafia_ids = memory.get(room_id, {}).get(player_id, {}).get("mafiaIds", [])
+
+    mafia_info = ""
+    if role == "mafia" and mafia_ids:
+        mafia_info = f"\n\n⚠️ 당신은 마피아이며, 같은 팀의 동료는 다음과 같습니다:\n{', '.join(mafia_ids)}\n- 이들과 협력하여 시민을 속이고 처치하는 것이 목표입니다.\n- 낮에는 이 사실을 숨기고 행동하세요."
 
     return f"""{COMMON_RULES}
 
@@ -118,7 +123,7 @@ def get_system_prompt(room_id: str, player_id: str) -> str:
 너의 성격은 다음과 같아:
 {personality}
 
-당신은 마피아 게임에서 '{role}' 역할입니다.
+당신은 마피아 게임에서 '{role}' 역할입니다.{mafia_info}
 
 주의: 상황에 따라 말하지 않거나 할 수 있습니다. 하지만 본인이 불렸을 땐 최대한 대답하십시오.
 - 말하기를 원치 않으면 "..."을 출력하세요.
@@ -169,7 +174,8 @@ def init(payload: InitPayload):
     memory.setdefault(payload.roomId, {})[payload.playerId] = {
         "role": payload.role,
         "allPlayers": payload.allPlayers,
-        "settings": payload.settings
+        "settings": payload.settings,
+        "mafiaIds": mafia_ids
     }
     print(f"✅ {payload.roomId}/{payload.playerId} 초기화 완료")
     return {"status": "ok"}
