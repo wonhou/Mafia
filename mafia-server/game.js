@@ -233,14 +233,19 @@ class MafiaGame {
     //강민우 memory in main.py
     const mafiaPlayers = this.players.filter(p => p.role === 'mafia' && p.alive);
     for (const mafia of mafiaPlayers) {
-      await axios.post(`http://localhost:4000/night-summary`, {
-        roomId: this.roomId,
-        role: 'mafia',
-        playerId: mafia.id,
-        day: this.day,
-        data: { target: targetToKill }
-      });
+      try {
+        await axios.post(`http://localhost:4000/night-summary`, {
+          roomId: this.roomId,
+          role: 'mafia',
+          playerId: mafia.id,
+          day: this.day,
+          data: { target: targetToKill }
+        });
+      } catch (err) {
+        console.warn(`⚠️ AI 서버 연결 실패 (mafia: ${mafia.id}): ${err.message}`);
+      }
     }
+
     if (police && policeTarget) {
       const investigated = this.players.find(p => p.id === policeTarget);
       if (investigated) {
@@ -249,31 +254,41 @@ class MafiaGame {
           target: investigated.id,
           isMafia: investigated.role === 'mafia'
         };
-        await axios.post(`http://localhost:4000/night-summary`, {
-          roomId: this.roomId,
-          role: 'police',
-          playerId: police.id,
-          day: this.day,
-          data: {
-            target: investigated.id,
-            isMafia: investigated.role === 'mafia'
-          }
-        });
+
+        try {
+          await axios.post(`http://localhost:4000/night-summary`, {
+            roomId: this.roomId,
+            role: 'police',
+            playerId: police.id,
+            day: this.day,
+            data: {
+              target: investigated.id,
+              isMafia: investigated.role === 'mafia'
+            }
+          });
+        } catch (err) {
+          console.warn(`⚠️ AI 서버 연결 실패 (police: ${police.id}): ${err.message}`);
+        }
       }
     }
+    
     if (doctor && doctorTarget) {
       this.lastSaved = {
         doctorId: doctor.id,
         saved: doctorTarget
       };
 
-      await axios.post(`http://localhost:4000/night-summary`, {
-        roomId: this.roomId,
-        role: 'doctor',
-        playerId: doctor.id,
-        day: this.day,
-        data: { target: doctorTarget }
-      });
+      try {
+        await axios.post(`http://localhost:4000/night-summary`, {
+          roomId: this.roomId,
+          role: 'doctor',
+          playerId: doctor.id,
+          day: this.day,
+          data: { target: doctorTarget }
+        });
+      } catch (err) {
+        console.warn(`⚠️ AI 서버 연결 실패 (doctor: ${doctor.id}): ${err.message}`);
+      }
     }
 
 
