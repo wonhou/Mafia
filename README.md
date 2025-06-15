@@ -58,3 +58,38 @@
 ![Image](https://github.com/user-attachments/assets/ff099506-3c93-4cf5-a648-dc5061c3cef7)
 
 다른 유저들의 준비가 완료되면 호스트(방장)는 게임을 시작할 수 있습니다.
+
+### 방 만드는 화면
+![Image](https://github.com/user-attachments/assets/2c2c80fa-d5d4-414a-8f8d-4a6ce996639b)
+
+자기가 방을 만들 때는 로비 화면에서 CREATE ROOM을 통해 만들 수 있습니다.
+
+### 자기가 방장인 경우
+![Image](https://github.com/user-attachments/assets/6ea6199c-05ec-451f-8bf2-b599f63233fb)
+
+START버튼이 활성화 되며, 8명의 인원이 다 차지 않아도 시작이 가능합니다.
+
+### 게임 시작
+![Image](https://github.com/user-attachments/assets/0097d13d-d74d-4588-83ce-82f73e0ab2d1)
+
+처음에 자기 직업을 배정받으며 왼쪽 위에는 몇번째 낮/밤 인지, 유저 이름이 나타나 있습니다.
+
+### 투표시
+![Image](https://github.com/user-attachments/assets/95e78e35-49cf-4fe7-b116-bb393dac4689)
+
+투표 시 해당 아이디에 구별하기 쉽게 나타나 있습니다.
+
+### 낮
+![Image](https://github.com/user-attachments/assets/5f37950b-5d29-40ed-9b12-214c06e53972)
+
+다음과 같이 AI와 대화를 통해 마피아를 추리합니다.
+
+### 낮 투표 시작
+![Image](https://github.com/user-attachments/assets/51ead9bf-786f-4988-9249-9c727caad13f)
+
+투표가 시작되면 처형할 사람을 고릅니다. AI또한 처형할 사람을 선택하게 됩니다.
+
+### 투표 종료 후 2일차 밤 시작
+![Image](https://github.com/user-attachments/assets/97917749-f71a-4cb3-8c48-9a60f57273f8)
+
+투표가 종료된 후 가장 마피아로 의심되는 사람이 처형되고, 다시 밤이 시작됩니다. 이와 같은 과정을 거쳐 마피아가 마피아와 시민의 수가 같아지거나 모든 마피아를 제거하면 게임이 끝나게 됩니다.
