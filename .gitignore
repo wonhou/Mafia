@@ -1,0 +1,10 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# AWS private keys
+*.pem
+*.ppk
+
+# 기타 민감 정보
+*.txt
