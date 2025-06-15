@@ -81,16 +81,21 @@ class MafiaGame {
     this.humanNightActions = {};
     console.log(`🌙 밤 ${this.day} 시작`);
 
+    const systemMsg = `${this.day}번째 밤입니다. 마피아, 의사, 경찰은 행동을 선택하세요.`;
     this.broadcast({
       type: "night_start",
-      message: `${this.day}번째 밤입니다. 마피아, 의사, 경찰은 행동을 선택하세요.`
+      message: systemMsg
     });
-
-    // system 메시지를 chatHistory에 저장
     this.chatHistory.push({
       sender: "system",
-      message: `${this.day}번째 밤입니다. 마피아, 의사, 경찰은 행동을 선택하세요.`
+      message: systemMsg
     });
+
+    //ai마피아 행동
+    const aiMafias = this.players.filter(p => p.isAI && p.role === 'mafia' && p.alive);
+    this.pendingMafiaActions = await Promise.all(
+      aiMafias.map(mafia => this.getMafiaAction(mafia))
+    );
 
     setTimeout(() => {
       if (!this.isAlive) return;
@@ -120,9 +125,18 @@ class MafiaGame {
   async collectNightActions() {
     const nightActions = [];
 
-    // ▶ AI 플레이어들의 행동 수집
-    const aliveAIs = this.players.filter(p => p.isAI && p.alive);
-    for (const ai of aliveAIs) {
+    if (this.pendingMafiaActions?.length > 0) {
+      nightActions.push(...this.pendingMafiaActions.filter(Boolean));
+    }
+
+    // 기타 AI 역할은 기존 방식
+    const otherAIs = this.players.filter(p =>
+      p.isAI && p.alive && p.role !== 'mafia'
+    );
+
+    const otherAIActions = await Promise.all(otherAIs.map(async ai => {
+      if (!this.isAlive) return null;
+
       const payload = {
         roomId: this.roomId,
         playerId: ai.id,
@@ -132,14 +146,19 @@ class MafiaGame {
       };
 
       try {
-        const res = await axios.post(`http://localhost:4000/night-action`, payload);
-        nightActions.push({ playerId: ai.id, action: res.data });
+        if (!this.isAlive) return null;
+        const res = await axios.post("http://localhost:4000/night-action", payload);
+        if (!this.isAlive) return null;
+        return { playerId: ai.id, action: res.data };
       } catch (err) {
         console.error(`❌ ${ai.id} 응답 실패:`, err.message);
+        return null;
       }
-    }
+    }));
 
-    // ▶ 사람이 제출한 행동도 포함
+    nightActions.push(...otherAIActions.filter(Boolean));
+
+    // 사람 플레이어의 행동 포함
     const aliveHumans = this.players.filter(p => !p.isAI && p.alive);
     for (const human of aliveHumans) {
       const saved = this.humanNightActions?.[human.id];
@@ -153,36 +172,143 @@ class MafiaGame {
     return nightActions;
   }
 
+  async getMafiaAction(mafiaPlayer) {
+    try {
+      if (!this.isAlive) return null;
+      const roomId = this.roomId;
+      const playerId = mafiaPlayer.id;
+      const aliveTargets = this.players
+        .filter(p => p.alive && p.id !== playerId)
+        .map(p => p.id);
+
+      // 1. 밤 대화 여러 번 수행
+      const chatCount = 2 + Math.floor(Math.random() * 2); // 2~3회
+      for (let i = 0; i < chatCount; i++) {
+        const chatRes = await axios.post("http://localhost:4000/mafia-night-chat", {
+          roomId,
+          playerId,
+          history: [], // 지금은 공백, 향후 최근 기록 반영 가능
+          day: this.day
+        });
+
+        if (!this.isAlive) return null;
+        const message = chatRes.data?.message?.trim();
+
+        if (message && message !== "..." && message !== "에러") {
+          // 마피아끼리 공유
+          for (const p of this.players) {
+            if (p.role === 'mafia' && p.alive) {
+              this.sendTo(p.id, {
+                type: "chat",
+                sender: playerId,
+                message
+              });
+            }
+          }
+          console.log(`💬 [밤채팅] ${playerId}: ${message}`);
+        }
+
+        // 채팅 사이 딜레이 (1~2초)
+        await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 1000));
+      }
+      if (!this.isAlive) return null;
+      // 2. 밤 행동 전 딜레이 (3초)
+      await new Promise(resolve => setTimeout(resolve, Math.random() * 3000));
+      if (!this.isAlive) return null;
+      // 3. 타겟 선택 요청
+      const res = await axios.post("http://localhost:4000/night-action", {
+        roomId,
+        playerId,
+        role: mafiaPlayer.role,
+        alivePlayers: aliveTargets,
+        day: this.day
+      });
+      if (!this.isAlive) return null;
+
+      const target = res.data?.target?.trim();
+
+      console.log(`[NightAction] ${mafiaPlayer.id} → ${target}`);
+
+      if (!target || target === "..." || target === "에러") {
+        console.warn(`❌ 마피아 타겟 선택 실패: ${playerId} → 응답 불완전`);
+        return null;
+      }
+
+      return {
+        playerId,
+        action: "kill",
+        target
+      };
+
+    } catch (err) {
+      console.warn(`⚠️ 마피아 행동 실패 (${mafiaPlayer.id}): ${err.message}`);
+      return null;
+    }
+  }
 
   async handleNightActions(nightActions) {
     if (!this.isAlive) return;
     console.log(`🩸 밤 ${this.day} 행동 처리 중.`);
 
-    let mafiaTargets = [];
+    let mafiaVotes = [];
     let doctorTarget = null;
     let policeTarget = null;
 
-    nightActions.forEach(({ action }) => {
-      if (action.action === 'kill') mafiaTargets.push(action.target);
-      else if (action.action === 'save') doctorTarget = action.target;
-      else if (action.action === 'investigate') policeTarget = action.target;
+    // 모든 행동 수집
+    nightActions.forEach(entry => {
+      const { playerId, action } = entry;
+
+      if (action === 'kill' && entry.target) {
+        // AI 마피아의 응답 구조: { playerId, action: 'kill', target: 'ai_3' }
+        mafiaVotes.push({ playerId, target: entry.target });
+      }
+      else if (action?.action === 'kill') {
+        // 일반적인 응답 구조: { playerId, action: { action: 'kill', target: 'ai_3' } }
+        mafiaVotes.push({ playerId, target: action.target });
+      }
+      else if (action?.action === 'save') {
+        doctorTarget = action.target;
+      }
+      else if (action?.action === 'investigate') {
+        policeTarget = action.target;
+      }
     });
 
-    // 마피아 투표 집계
+    // 마피아 타겟별 득표 수 계산
     const killCounts = {};
-    mafiaTargets.forEach(id => {
-      killCounts[id] = (killCounts[id] || 0) + 1;
+    mafiaVotes.forEach(({ target }) => {
+      killCounts[target] = (killCounts[target] || 0) + 1;
     });
+
+    let maxVotes = Math.max(...Object.values(killCounts));
+    const topTargets = Object.entries(killCounts)
+      .filter(([_, count]) => count === maxVotes)
+      .map(([target]) => target);
 
     let targetToKill = null;
-    let maxVotes = 0;
-    for (const [target, count] of Object.entries(killCounts)) {
-      if (count > maxVotes) {
-        maxVotes = count;
-        targetToKill = target;
+
+    if (topTargets.length === 1) {
+      targetToKill = topTargets[0];
+    } else {
+      const mafiaPlayerIds = mafiaVotes.map(v => v.playerId);
+      const aiCount = mafiaPlayerIds.filter(id => id.startsWith('ai_')).length;
+      const humanCount = mafiaPlayerIds.length - aiCount;
+
+      if (aiCount === 2 && humanCount === 0) {
+        //AI 마피아 타겟 분산 → 무작위 선택
+        targetToKill = topTargets[Math.floor(Math.random() * topTargets.length)];
+      } else if (aiCount === 1 && humanCount === 1) {
+        const humanTarget = mafiaVotes.find(v => !v.playerId.startsWith('ai_'))?.target;
+        if (humanTarget) {
+          //혼합 마피아 → 사람 마피아 타겟 우선
+          targetToKill = humanTarget;
+        }
+      } else {
+        //사람 마피아 의견 불일치 → 처형 무효
       }
     }
 
+    // 실제 사망 처리
     if (targetToKill && targetToKill !== doctorTarget) {
       const victim = this.players.find(p => p.id === targetToKill);
       if (victim) {
@@ -195,7 +321,7 @@ class MafiaGame {
           reason: "night"
         });
       }
-    } else if (doctorTarget && mafiaTargets.includes(doctorTarget)) {
+    } else if (doctorTarget && mafiaVotes.map(v => v.target).includes(doctorTarget)) {
       console.log(`💉 의사가 ${doctorTarget}을 살렸습니다!`);
       this.broadcast({
         type: "player_eliminated",
@@ -222,42 +348,6 @@ class MafiaGame {
           target: investigated.id,
           isMafia: investigated.role === 'mafia'
         };
-      }
-    }
-
-    // 의사 보호 정보 저장
-    const doctor = this.players.find(p => p.role === 'doctor' && p.alive);
-    if (doctor && doctorTarget) {
-      this.lastSaved = {
-        doctorId: doctor.id,
-        saved: doctorTarget
-      };
-    }
-
-    //강민우 memory in main.py
-    const mafiaPlayers = this.players.filter(p => p.role === 'mafia' && p.alive);
-    for (const mafia of mafiaPlayers) {
-      try {
-        await axios.post(`http://localhost:4000/night-summary`, {
-          roomId: this.roomId,
-          role: 'mafia',
-          playerId: mafia.id,
-          day: this.day,
-          data: { target: targetToKill }
-        });
-      } catch (err) {
-        console.warn(`⚠️ AI 서버 연결 실패 (mafia: ${mafia.id}): ${err.message}`);
-      }
-    }
-
-    if (police && policeTarget) {
-      const investigated = this.players.find(p => p.id === policeTarget);
-      if (investigated) {
-        this.lastInvestigation = {
-          policeId: police.id,
-          target: investigated.id,
-          isMafia: investigated.role === 'mafia'
-        };
 
         try {
           await axios.post(`http://localhost:4000/night-summary`, {
@@ -275,7 +365,9 @@ class MafiaGame {
         }
       }
     }
-    
+
+    // 의사 보호 정보 저장
+    const doctor = this.players.find(p => p.role === 'doctor' && p.alive);
     if (doctor && doctorTarget) {
       this.lastSaved = {
         doctorId: doctor.id,
@@ -295,6 +387,21 @@ class MafiaGame {
       }
     }
 
+    // 마피아 night-summary 저장
+    const mafiaPlayers = this.players.filter(p => p.role === 'mafia' && p.alive);
+    for (const mafia of mafiaPlayers) {
+      try {
+        await axios.post(`http://localhost:4000/night-summary`, {
+          roomId: this.roomId,
+          role: 'mafia',
+          playerId: mafia.id,
+          day: this.day,
+          data: { target: targetToKill }
+        });
+      } catch (err) {
+        console.warn(`⚠️ AI 서버 연결 실패 (mafia: ${mafia.id}): ${err.message}`);
+      }
+    }
 
     // 결과 브로드캐스트
     this.broadcast({
@@ -304,6 +411,7 @@ class MafiaGame {
       investigated: policeTarget ?? null
     });
 
+    // 승리 조건 체크
     const winner = this.checkWinCondition();
     if (winner) {
       this.isAlive = false;
@@ -316,6 +424,7 @@ class MafiaGame {
       return true;
     }
   }
+
 
   async startDay() {
     if (!this.isAlive) return;
@@ -457,10 +566,12 @@ class MafiaGame {
 
     // 사람 플레이어는 vote_end 신호까지 기다림
     setTimeout(() => {
+      if (!this.isAlive) return;
       this.broadcast({ type: "vote_end" });
 
       // 무조건 1초 후 vote 처리
       setTimeout(() => {
+        if (!this.isAlive) return;
         this.resolveVote();
       }, 1000);
     }, 15000);
