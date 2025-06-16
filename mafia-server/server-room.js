@@ -275,6 +275,21 @@ wss.on('connection', (ws) => {
           isOwner
         }));
 
+        broadcastToRoom(roomId, {
+          type: 'room_info',
+          roomId,
+          roomName: room.name,
+          players: playerList,
+          isOwner: false  // 각 클라이언트가 자기 id로 판단
+        });
+
+        broadcastToRoom(roomId, {
+          type: 'update_ready',
+          players: room.players.map(id => ({
+            playerId: id,
+            isReady: id === room.players[0] ? true : room.readyPlayers?.[id] === true
+          }))
+        });
         return;
       }
 
@@ -286,6 +301,25 @@ wss.on('connection', (ws) => {
           wasClosed: false
         });
         playerRoomMap.delete(playerId);
+        const room = rooms[roomId];
+
+        if (room) {
+          const updatedPlayerList = room.players.map((id, index) => ({
+            id,
+            name: playerNameMap.get(id) || "???",
+            slot: index,
+            isOwner: index === 0,
+            isAlive: room.game?.players.find(p => p.id === id)?.alive ?? true
+          }));
+
+          broadcastToRoom(roomId, {
+            type: 'room_info',
+            roomId,
+            roomName: room.name,
+            players: updatedPlayerList,
+            isOwner: false
+          });
+        }
         return;
       }
 
@@ -339,7 +373,7 @@ wss.on('connection', (ws) => {
         room.players = room.players.filter(id => !id.startsWith('ai_'));
 
         // ✅ Ready 체크
-        room.readyPlayers = {};
+        room.readyPlayers = room.readyPlayers || {};
         
         const ownerId = room.players[0]; // 방장
         room.readyPlayers[ownerId] = true; // 방장은 항상 Ready
@@ -467,20 +501,22 @@ wss.on('connection', (ws) => {
 
       if (msg.type === 'set_ready') {
         const room = rooms[currentRoom];
-
         if (!room) return;
+
+        const ownerId = room.players[0]; // 방장
 
         room.readyPlayers = room.readyPlayers || {};
         room.readyPlayers[currentPlayerId] = msg.isReady;
+        room.readyPlayers[ownerId] = true; // 방장 항상 Ready
 
         console.log(`✅ ${currentPlayerId} Ready 상태: ${msg.isReady}`);
 
-        // 모든 유저에게 Ready 상태 브로드캐스트
+        // ✅ 모든 유저 기준으로 Ready 상태 브로드캐스트
         const update = {
           type: 'update_ready',
-          players: Object.entries(room.readyPlayers).map(([id, isReady]) => ({
+          players: room.players.map(id => ({
             playerId: id,
-            isReady
+            isReady: id === ownerId ? true : room.readyPlayers[id] === true
           }))
         };
 

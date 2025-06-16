@@ -24,6 +24,7 @@ class MafiaGame {
   terminate() {
     this.isAlive = false;
     this.players = [];
+    this.chatHistory = [];
     this.broadcast = () => {};  // noop 처리
     this.sendTo = () => {};
     console.log("🛑 MafiaGame 인스턴스가 종료되었습니다");
@@ -456,7 +457,7 @@ class MafiaGame {
   async sendChatPhase() {
     if (!this.isAlive) return;
     const aliveAIs = this.players.filter(p => p.isAI && p.alive);
-    const endTime = Date.now() + 120000;  // 낮 턴 제한 시간: 2분
+    const endTime = Date.now() + 10000;  // 낮 턴 제한 시간: 2분
 
     // // 각 AI당 발언 횟수 2~3회로 제한
     // const speakCountMap = {};
@@ -652,6 +653,21 @@ class MafiaGame {
 
       this.broadcast({ type: 'game_over', message: winner });
       console.log(`🏁 게임 종료! 승리: ${winner}`);
+      // ✅ 게임 종료 후 Ready 상태 초기화
+      for (const id of this.players) {
+        if (!id.startsWith("ai_")) {
+          this.rooms[this.roomId].readyPlayers[id] = false;
+        }
+      }
+
+      // ✅ 클라이언트들에게 Ready 상태 알려주기
+      this.broadcast({
+        type: 'update_ready',
+        players: this.players.map(id => ({
+          playerId: id,
+          isReady: id === this.players[0]  // 방장은 자동 ready
+        }))
+      });
       return;
     }
 
