@@ -188,7 +188,8 @@ class MafiaGame {
           roomId,
           playerId,
           history: [], // 지금은 공백, 향후 최근 기록 반영 가능
-          day: this.day
+          day: this.day,
+          alivePlayers: aliveTargets
         });
 
         if (!this.isAlive) return null;
@@ -457,11 +458,11 @@ class MafiaGame {
     const aliveAIs = this.players.filter(p => p.isAI && p.alive);
     const endTime = Date.now() + 120000;  // 낮 턴 제한 시간: 2분
 
-    // 각 AI당 발언 횟수 2~3회로 제한
-    const speakCountMap = {};
-    for (const ai of aliveAIs) {
-      speakCountMap[ai.id] = 2 + Math.floor(Math.random() * 2);  // 2~3회
-    }
+    // // 각 AI당 발언 횟수 2~3회로 제한
+    // const speakCountMap = {};
+    // for (const ai of aliveAIs) {
+    //   speakCountMap[ai.id] = 2 + Math.floor(Math.random() * 2);  // 2~3회
+    // }
 
     // 랜덤 순서를 만들기 위한 섞기 함수
     const shuffle = arr => arr.sort(() => Math.random() - 0.5);
@@ -512,21 +513,26 @@ class MafiaGame {
       for (const ai of shuffled) {
         if (Date.now() >= endTime || this.state !== 'day') break;
 
-        if (speakCountMap[ai.id] > 0) {
-          await speakOnce(ai);
-          speakCountMap[ai.id]--;
-          
-          if (!this.isAlive) return;
+        await speakOnce(ai);
+        if (!this.isAlive) return;
 
-          // 말한 후 2~5초 쉬기
-          const delay = Math.floor(Math.random() * 3000) + 2000;
-          await new Promise(resolve => setTimeout(resolve, delay));
-        }
+        const delay = Math.floor(Math.random() * 3000) + 2000;
+        await new Promise(resolve => setTimeout(resolve, delay));
+        // if (speakCountMap[ai.id] > 0) {
+        //   await speakOnce(ai);
+        //   speakCountMap[ai.id]--;
+          
+        //   if (!this.isAlive) return;
+
+        //   // 말한 후 2~5초 쉬기
+        //   const delay = Math.floor(Math.random() * 3000) + 2000;
+        //   await new Promise(resolve => setTimeout(resolve, delay));
+        // }
       }
 
       // 남은 발언 기회 없으면 종료
-      const hasMore = Object.values(speakCountMap).some(cnt => cnt > 0);
-      if (!hasMore) break;
+      //const hasMore = Object.values(speakCountMap).some(cnt => cnt > 0);
+      //if (!hasMore) break;
     }
 
     this.lastInvestigation = null;
