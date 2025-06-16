@@ -287,6 +287,7 @@ public class MafiaClientUnified : MonoBehaviour
         }
 
         websocket = new WebSocket("ws://localhost:3000");
+        //websocket = new WebSocket("ws://3.37.55.237:3000");
 
         websocket.OnOpen += () =>
         {
