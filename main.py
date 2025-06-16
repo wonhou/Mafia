@@ -467,10 +467,10 @@ def vote_suggestion(payload: VotePayload):
     )
     prompt = f"""당신은 마피아 게임 참가자입니다.
 지금은 낮이며, 투표를 통해 마피아를 찾아야 합니다.
-현재 살아있는 플레이어: {', '.join(payload.alivePlayers)}
-현재 살아있는 플레이어에게만 투표할 수 있습니다.
 모든 대화 기록:
 {history_text}
+현재 살아있는 플레이어: {', '.join(payload.alivePlayers)}
+현재 살아있는 플레이어에게만 투표할 수 있습니다.
 
 이 중 당신이 투표할 플레이어의 닉네임 하나만 출력하세요."""
     system_prompt = get_system_prompt(payload.roomId, payload.playerId)
