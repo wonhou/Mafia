@@ -1,5 +1,17 @@
 const axios = require('axios');
 
+function getFormattedTimestamp() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const seconds = String(now.getSeconds()).padStart(2, '0');
+
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+
 class MafiaGame {
   constructor(roomId, players, broadcastFunc, sendToFunc, roomsRef) {
     this.roomId = roomId;
@@ -88,6 +100,7 @@ class MafiaGame {
       message: systemMsg
     });
     this.chatHistory.push({
+      timestamp: getFormattedTimestamp(),
       sender: "system",
       message: systemMsg
     });
@@ -431,10 +444,6 @@ class MafiaGame {
   async startDay() {
     if (!this.isAlive) return;
 
-    this.chatHistory = this.chatHistory.filter(msg =>
-      !(msg.sender === 'system' && msg.message.includes('밤'))
-    );
-
     this.state = 'day';
     console.log(`🌞 낮 ${this.day} 시작`);
     this.votes = {};
@@ -445,6 +454,7 @@ class MafiaGame {
     });
 
     this.chatHistory.push({
+      timestamp: getFormattedTimestamp(),
       sender: "system",
       message: `${this.day}번째 낮입니다. 자유롭게 토론하세요.`
     });
@@ -494,7 +504,6 @@ class MafiaGame {
         const message = res.data.message;
 
         if (message && message !== "...") {
-          this.chatHistory.push({ sender: ai.id, message });
           this.broadcast({
             type: "chat",
             sender: ai.id,
@@ -654,10 +663,8 @@ class MafiaGame {
       this.broadcast({ type: 'game_over', message: winner });
       console.log(`🏁 게임 종료! 승리: ${winner}`);
       // ✅ 게임 종료 후 Ready 상태 초기화
-      for (const id of this.players) {
-        if (!id.startsWith("ai_")) {
-          this.rooms[this.roomId].readyPlayers[id] = false;
-        }
+      for (const p of this.players) {
+        this.rooms[this.roomId].readyPlayers[p.id] = false;
       }
 
       // ✅ 클라이언트들에게 Ready 상태 알려주기
