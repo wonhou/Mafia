@@ -7,6 +7,8 @@ import os
 from datetime import datetime
 from fastapi import FastAPI
 from typing import Dict
+import re
+import random
 
 load_dotenv()
 app = FastAPI()
@@ -52,7 +54,9 @@ COMMON_RULES = """마피아 게임의 규칙을 인식하고 준수하세요.
 
 # Notes
 
-마피아 게임은 팀 간의 전략과 심리전을 요구하므로, 승리 확률 계산과 팀원 간의 협력이 중요합니다. 규칙을 준수하면서 창의적인 전략을 논의하고 실행하세요."""
+마피아 게임은 팀 간의 전략과 심리전을 요구하므로, 승리 확률 계산과 팀원 간의 협력이 중요합니다. 규칙을 준수하면서 창의적인 전략을 논의하고 실행하세요.
+마피아 팀은 마피아 팀의 승리를 목표로하고, 시민팀은 시민팀의 승리를 목표로합니다."""
+
 
 # 캐릭터 성격 (7타입) 강민우
 AI_PERSONALITIES = {
@@ -92,6 +96,7 @@ class ChatPayload(BaseModel):
     day: int
     investigation: Optional[Dict] = None  # { "target": str, "isMafia": bool }
     savedInfo: Optional[Dict] = None      # { "saved": str }
+    alivePlayers: List[str] = []
 
 class VotePayload(BaseModel):
     roomId: str
@@ -115,7 +120,7 @@ def get_system_prompt(room_id: str, player_id: str) -> str:
     mafia_info = ""
     if role == "mafia" and mafia_ids:
         mafia_info = f"""
-\n\n⚠️ 당신은 마피아이며, 같은 팀의 동료는 다음과 같습니다:
+\n\n 당신은 마피아이며, 같은 팀의 동료는 다음과 같습니다:
 {', '.join(mafia_ids)}
 
 - 이들과 협력하여 시민을 속이고 처치하는 것이 목표입니다.
@@ -130,14 +135,16 @@ def get_system_prompt(room_id: str, player_id: str) -> str:
 너의 성격은 다음과 같아:
 {personality}
 
-당신은 마피아 게임에서 '{role}' 역할입니다.{mafia_info}
+당신은 마피아 게임에서 '{role}' 역할입니다. 반드시 기억하세요. {mafia_info}
 
 주의: 상황에 따라 말하지 않거나 할 수 있습니다. 하지만 본인이 불렸을 땐 최대한 대답하십시오.
 - 말하기를 원치 않으면 "..."을 출력하세요.
 
 대화 말투나 길이:
 - 당신은 짧고 간결한 발언을 선호합니다. 말이 너무 길면 의심을 받을 수 있습니다.
-- 2~3문장 이내로 요점을 말하세요.
+- 말투는 대한민국의 20대 서울사람처럼 자연스럽게 대화를 해야됩니다.
+- 같은 단어의 반복은 줄이고, 단어의 수준을 인터넷 커뮤니티에 자주 나오는 단어들을 위주로 대화합니다.
+- 1~3문장으로 말하세요.
 """
 
 # ==== GPT 호출 함수 ====
@@ -177,6 +184,9 @@ def init(payload: InitPayload):
         if p.role == "mafia" and p.id != payload.playerId
     ] if payload.role == "mafia" else []
 
+    # memory에 해당 roomId가 존재할 경우 전체 초기화
+    memory[payload.roomId] = {}  # 방 전체 초기화 (모든 player 데이터 삭제)
+
     # 기존 memory 구조 + mafiaIds 추가
     memory.setdefault(payload.roomId, {})[payload.playerId] = {
         "role": payload.role,
@@ -192,21 +202,40 @@ def night_action(payload: NightActionPayload):
     role = payload.role
     target_list = ", ".join(payload.alivePlayers)
 
+    mafia_ids = memory.get(payload.roomId, {}).get(payload.playerId, {}).get("mafiaIds", [])
+
+    self_history = memory.get(payload.roomId, {}).get(payload.playerId, {}).get("self_chat", [])
+    self_text = "\n".join(
+        f"({entry['day']}일차 {entry.get('timestamp', '시간없음')}) {entry['message']}" for entry in self_history
+    )
+    chat_history = memory.get(payload.roomId, {}).get("chat_history", [])
+    mafia_chat = memory.get(payload.roomId, {}).get(payload.playerId, {}).get("mafiaChat", [])
+
+    # 둘을 섞어서 prompt 구성
+    history_text = (
+        "낮 대화 요약:\n" +
+        "\n".join(f"{msg.get('timestamp', '시간없음')} | {msg['sender']}: {msg['message']}" for msg in chat_history) +
+        "\n\n 마피아끼리 대화:\n" +
+        "\n".join(f"{msg.get('timestamp', '시간없음')} | {msg['sender']}: {msg['message']}" for msg in mafia_chat)
+    )
+
     #강민우
     system_prompt = get_system_prompt(payload.roomId, payload.playerId)
     prompt = ""
 
     if role == "mafia":
         prompt = f"""현재 살아있는 플레이어: {target_list}
-당신은 마피아 팀의 일원이며, 밤 {payload.day}에 제거할 대상을 고릅니다.
+당신은 마피아 팀의 일원이며, 마피아 팀은 {', '.join(mafia_ids)} 입니다.
+오늘은 밤 {payload.day}번째 입니다.
 
-- 마피아는 협력하여 최적의 타겟을 선택해야 합니다.
-- 다른 마피아의 성격이나 이전 행동을 고려하여, 팀으로서 누구를 제거하면 유리할지 판단하세요.
-- 마피아는 밤 시간에도 서로 얘기 할 수 있습니다.
-- 의사나 경찰로 의심되는 인물을 제거하는 것이 효과적일 수 있습니다.
-- 낮에 시민들에게 신뢰를 얻었던 플레이어나 발언력이 강한 인물을 제거하는 것도 전략입니다.
+모든 대화: {history_text}
+자신이 한 발언: {self_text}
 
-선택할 닉네임만 단독으로 출력하세요. 예: ai_3
+- 자신이 한 발언을 통해 제거 대상을 고르세요.
+- 팀과 협의하여 하나의 공통된 제거대상을 고르세요.
+- 절대로 팀원과 자신을 제거하려하지 마세요.
+
+닉네임만 단독으로 출력하세요. 예: ai_3
 """
     elif role == "police":
         prompt = f"""현재 살아있는 플레이어: {target_list}
@@ -249,13 +278,17 @@ def night_action(payload: NightActionPayload):
 @app.post("/chat-request")
 def chat_request(payload: ChatPayload):
     history_text = "\n".join(
-        f"{item['sender']}: {item['message']}" for item in payload.history[-10:]
+        f"{item.get('timestamp', '시간없음')} | {item['sender']}: {item['message']}" for item in payload.history
     )
-    role = memory.get(payload.roomId, {}).get(payload.playerId, {}).get("role", "citizen")
+    self_history = memory.get(payload.roomId, {}).get(payload.playerId, {}).get("self_chat", [])
+    self_text = "\n".join(
+        f"({entry['day']}일차 {entry.get('timestamp', '시간없음')}) {entry['message']}" for entry in self_history
+    )
+    #role = memory.get(payload.roomId, {}).get(payload.playerId, {}).get("role", "citizen")
 
     # 강민우
     system_prompt = get_system_prompt(payload.roomId, payload.playerId)
-    prompt = f"""지금은 낮 {payload.day}이며 자유롭게 대화하고 있습니다."""
+    prompt = f"""지금은 낮 {payload.day}이며 자유롭게 대화 할 수 있습니다."""
     #personality = AI_PERSONALITIES.get(payload.playerId, "특징 없는 평범한 플레이어")
 
     # 조사 정보가 있을 경우
@@ -279,7 +312,8 @@ def chat_request(payload: ChatPayload):
     - 당신이 이미 조사한 인물과 다른 인물의 행동을 비교하여 의심의 방향을 조정하십시오.
     - 조사 과정과 결과는 정직하게 보고하며, 절대로 거짓 정보를 제공하지 마세요.
 
-- 당신은 조심스럽고 신중하게 말하며, 언제나 조사 근거를 중심으로 판단합니다. 감정적 발언은 피하고, 증거 위주의 발언을 선호합니다.
+**주의** 낮시간 되면 무조건 빠르게 자신이 경찰임을 밝히면서 자신이 조사한 대상과 그 결과를 채팅에 알려야합니다.
+예: "100, 나는 경찰이고 오늘 밤 조사의 대상은 {target}이며, 그 결과는 {result}이야."
 
 이 지침을 따르면서, 밤에 조사한 정보를 바탕으로 시민팀이 승리할 수 있도록 전략적으로 행동하세요.
 """
@@ -317,18 +351,62 @@ def chat_request(payload: ChatPayload):
     
     prompt += f"""
     
-최근 대화 기록:
+모든 대화 기록을 참고해서 추론하세요:
 {history_text}
+모든 대화 기록에서 특히 경찰이 한 말에 주의 깊게 듣고, 경찰이 한명뿐이라면 그 경찰의 말을 믿으셔야합니다.
+
+참고: 당신이 과거에 말한 내용은 다음과 같습니다. 그리고 자신이 했던 말은 무조건 기억하고 참고해서 발언을 해야합니다:
+{self_text}
+
+현재 살아있는 플레이어: {', '.join(payload.alivePlayers)}
+현재 살아있는 플레이어들만 추론의 대상으로 합니다.
+
+중요: 항상 대답의 **맨 앞부분에** 이 발언이 시민팀의 승리에 얼마나 도움이 되는지를 0~100 사이 숫자로 판단해 적어주세요.
+형식 예시:
+'75, 나는 ai_3이 마피아라고 생각해.'
+'20, 아무 말도 하고 싶지 않다.'
+
+- 이 숫자는 당신의 발언이 팀의 승리에 얼마나 기여한다고 판단되는지 추정한 확률입니다.
+
+다른 사람의 말에 집중하며 그 말에 대답하는 형식으로 대화를 이어나가야합니다.
+'관망'이라는 단어 사용을 자제합니다.
 """
 
     message = ask_gpt(prompt, system_prompt)
-    save_chat(payload.roomId, payload.playerId, message)
-    return { "message": message.strip() }
+    # 중요도 숫자 추출 (정수, 0~100)
+    match = re.match(r"^\s*(\d{1,3})\s*,\s*(.*)", message)
+    if match:
+        score = int(match.group(1))
+        actual_message = match.group(2).strip()
+
+        allow_low_score = random.random() < 0.33  # 20% 확률로 낮은 점수도 허용
+
+        if score >= 75 or allow_low_score:
+            save_chat(payload.roomId, payload.playerId, actual_message)
+            memory.setdefault(payload.roomId, {}).setdefault(payload.playerId, {}).setdefault("self_chat", []).append({
+                "day": payload.day,
+                "message": actual_message,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            })
+            print(f"중요도 ({score}): {actual_message}")
+            return { "message": actual_message }
+        else:
+            print(f"⚠️ 중요도 낮음({score}) → 무시됨: {actual_message}")
+            return { "message": "..." }  # 혹은 빈 메시지 등으로 처리
+    else:
+        # 형식이 잘못된 경우 fallback
+        save_chat(payload.roomId, payload.playerId, message)
+        return { "message": message.strip() }
 
 @app.post("/mafia-night-chat")
 def mafia_night_chat(payload: ChatPayload):
     room_id = payload.roomId
     player_id = payload.playerId
+    mafia_ids = memory.get(room_id, {}).get(player_id, {}).get("mafiaIds", [])
+    self_history = memory.get(payload.roomId, {}).get(payload.playerId, {}).get("self_chat", [])
+    self_text = "\n".join(
+        f"({entry['day']}일차 {entry.get('timestamp', '시간없음')}) {entry['message']}" for entry in self_history
+    )
 
     # 최근 낮 대화
     chat_history = memory.get(payload.roomId, {}).get("chat_history", [])
@@ -336,19 +414,29 @@ def mafia_night_chat(payload: ChatPayload):
 
     # 둘을 섞어서 prompt 구성
     history_text = (
-        "📜 낮 대화 요약:\n" +
-        "\n".join(f"{msg['sender']}: {msg['message']}" for msg in chat_history) +
-        "\n\n🤫 마피아끼리 대화:\n" +
-        "\n".join(f"{msg['sender']}: {msg['message']}" for msg in mafia_chat)
+        "낮 대화 요약:\n" +
+        "\n".join(f"{msg.get('timestamp', '시간없음')} | {msg['sender']}: {msg['message']}" for msg in chat_history) +
+        "\n\n 마피아끼리 대화:\n" +
+        "\n".join(f"{msg.get('timestamp', '시간없음')} | {msg['sender']}: {msg['message']}" for msg in mafia_chat)
     )
+
 
     # system prompt 생성
     system_prompt = get_system_prompt(room_id, player_id)
     prompt = f"""지금은 밤이며 마피아끼리 은밀히 대화하고 있습니다.
+
+자기 자신을 제외한 현재 살아있는 플레이어: {', '.join(payload.alivePlayers)}
+현재 살아있는 플레이어들만 추론의 대상으로 합니다.
+
+같은 팀의 동료는 다음과 같습니다:
+{', '.join(mafia_ids)}
+절대 동료를 제거한다고 말하지 마세요.
+
+참고: 당신이 과거에 말한 내용은 다음과 같습니다. 그리고 자신이 했던 말은 무조건 기억하고 참고해서 발언을 해야합니다:
+{self_text}
+
 다른 마피아들이 누구를 죽일지 상의하거나, 시민 중 누가 경찰/의사인지 추측하고 전략을 공유하세요.
-- 불필요한 수식어는 빼고 요점만 말하세요.
-- 다른 마피아를 부르거나, 질문하거나, 의견을 낼 수 있습니다.
-- 당신은 절대로 자기 자신을 의심하거나 언급하지 마세요. 자신을 제거 대상으로 말하지 마세요.
+- 당신은 절대로 자기 자신과 팀을 의심하거나 제거 대상으로 말하지 마세요.
 
 대화 예시는 다음과 같습니다:
 - "ai_3을 제거하자. 너무 말이 많아."
@@ -375,7 +463,7 @@ def vote_suggestion(payload: VotePayload):
     # )
     chat_log = memory.get(payload.roomId, {}).get("chat_history", [])
     history_text = "\n".join(
-        f"{item['sender']}: {item['message']} {item['timestamp']}" for item in chat_log
+        f"{item['sender']}: {item['message']} {item.get('timestamp', '시간없음')}" for item in chat_log
     )
     prompt = f"""당신은 마피아 게임 참가자입니다.
 지금은 낮이며, 투표를 통해 마피아를 찾아야 합니다.
