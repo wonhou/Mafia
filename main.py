@@ -152,7 +152,7 @@ def ask_gpt(prompt: str, system_prompt: str = "") -> str:
     print("🔁 GPT 호출")
     try:
         response = client.chat.completions.create(
-            model="gpt-4.1-nano",
+            model="gpt-4.1",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt}
