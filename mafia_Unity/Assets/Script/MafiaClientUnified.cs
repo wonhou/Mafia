@@ -286,8 +286,8 @@ public class MafiaClientUnified : MonoBehaviour
             return;
         }
 
-        websocket = new WebSocket("ws://localhost:3000");
-        //websocket = new WebSocket("ws://3.37.55.237:3000");
+        //websocket = new WebSocket("ws://localhost:3000");
+        websocket = new WebSocket("ws://3.37.55.237:3000");
 
         websocket.OnOpen += () =>
         {
@@ -364,7 +364,7 @@ public class MafiaClientUnified : MonoBehaviour
                         RoomInfoMessage roomInfo = JsonUtility.FromJson<RoomInfoMessage>(message);
                         Debug.Log($"🏠 방 정보 수신됨 - RoomID: {roomInfo.roomId}, RoomName: {roomInfo.roomName}, 방장 여부: {roomInfo.isOwner}");
 
-                        isOwner = roomInfo.isOwner;
+                        isOwner = roomInfo.players.FirstOrDefault(p => p.id == playerId)?.isOwner ?? false;
                         roomName = roomInfo.roomName;
                         roomId = roomInfo.roomId;
                         currentPlayers = roomInfo.players;
@@ -965,7 +965,8 @@ public class MafiaClientUnified : MonoBehaviour
 
         if (RoomSceneManager.Instance != null && RoomSceneManager.Instance.gameObject != null)
         {
-            RoomSceneManager.Instance.SetRoomInfo(roomInfo.roomName, roomInfo.roomId, roomInfo.isOwner);
+            bool isMeOwner = roomInfo.players.FirstOrDefault(p => p.id == playerId)?.isOwner ?? false;
+            RoomSceneManager.Instance.SetRoomInfo(roomInfo.roomName, roomInfo.roomId, isMeOwner);
         }
         else
         {
