@@ -3,6 +3,7 @@
 # 1. 프로젝트 개요
 - 진행기간: 2025.03 ~ 2025.06
 - LLM 기반 AI(GPT‑4.1 nano) + 사용자와 함께하는 마피아 게임입니다.
+- 깃허브 주소( https://github.com/wonhou/Mafia)
 
 # 2. 프로젝트 소개
 <strong>Mafia With AI</strong>는 AI + 사용자로 마피아 게임을 즐길 수 있는 LLM 기반 마피아 게임입니다.
